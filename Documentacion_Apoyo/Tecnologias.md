@@ -12,9 +12,9 @@
 
     4.1 Video tutorial de JUCE -> https://www.youtube.com/watch?v=i_Iq4_Kd7Rc
 
-5.	Compilador e Instalador Automatizado -> 
+5.	Compilador e Instalador Automatizado -> Compilador: GCC (Compilador nativo de linux, viene en el paquete build-essential). Sistema de Construccion: CMake (JUCE tiene soporte oficial para CMAKE. El IDE solo tendrá que generar un archivo de texto llamado CMakeLists.txt junto con el codigo. Luego el IDE ejecuta un comando en segundo plano cmake . && make y listo.)
 
-6. Entorno de Pruebas (Host/DAW) ->
+6. Entorno de Pruebas (Host/DAW) -> JUCE AudioPluginHost para las pruebas, lo usare gran parte del tiempo. Ardour para demostrar que funciona en un entorno profesional.
 
-7. Entorno de Ejecución ->
+7. Entorno de Ejecución -> VirtualBox + Ubuntu Desktop normal, para una maquina virtual mas rapida y que solo instalaremos las librerias necesarias. Unico problema: Al utilizar una maquina virtual es probable que el audio no vaya fino y se escuche algun chasquido o latencia.
 
