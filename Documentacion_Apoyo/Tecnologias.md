@@ -18,3 +18,4 @@
 
 7. Entorno de Ejecución -> VirtualBox + Ubuntu Desktop normal, para una maquina virtual mas rapida y que solo instalaremos las librerias necesarias. Unico problema: Al utilizar una maquina virtual es probable que el audio no vaya fino y se escuche algun chasquido o latencia.
 
+Ampliaciones posibles -> Funciones de transferencia, fourier, laplace... ampliaciones posibles. Filtro I/R o filtro fear predefinido. Enlace directo a entorno de pruebas con una grabacion por defecto. Hay que usar para la interfaz grafica liberias estandar basicas de c++ para que sea lo mas portable posible.
