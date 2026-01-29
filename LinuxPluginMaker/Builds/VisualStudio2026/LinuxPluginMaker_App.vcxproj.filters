@@ -2,6 +2,9 @@
 
 <Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include="LinuxPluginMaker\Source\Core">
+      <UniqueIdentifier>{198C8DF7-2A2C-F6F2-2779-04DB55F8EA50}</UniqueIdentifier>
+    </Filter>
     <Filter Include="LinuxPluginMaker\Source">
       <UniqueIdentifier>{5A8C9AEF-91F0-0C13-7236-1FC786ECF64B}</UniqueIdentifier>
     </Filter>
@@ -310,6 +313,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\Source\Core\PluginGenerator.cpp">
+      <Filter>LinuxPluginMaker\Source\Core</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\Source\Main.cpp">
       <Filter>LinuxPluginMaker\Source</Filter>
     </ClCompile>
@@ -2148,6 +2154,9 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Source\Core\PluginGenerator.h">
+      <Filter>LinuxPluginMaker\Source\Core</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\MainComponent.h">
       <Filter>LinuxPluginMaker\Source</Filter>
     </ClInclude>

@@ -1,7 +1,6 @@
 /*
   ==============================================================================
-    PluginGenerator.h
-    Descripción: El cerebro del IDE. Se encarga de orquestar la creación de archivos.
+    Ruta: Source/Core/PluginGenerator.h
   ==============================================================================
 */
 
@@ -9,30 +8,31 @@
 #include <string>
 #include <vector>
 
-// Usamos un enum class para definir tipos fuertemente tipados (Buenas prácticas C++)
-enum class PluginType {
-    Effect,
-    Instrument
-};
-
 class PluginGenerator
 {
 public:
     PluginGenerator();
     ~PluginGenerator();
 
-    // Establecer datos básicos
+    // Setters para los datos del usuario
     void setProjectName (std::string name);
-    void setPluginCode (std::string code);
-    
-    // El método principal que "apretará el botón"
+    void setCustomCode (std::string code); // <--- NUEVO: Para el código C++ del usuario
+    void setIOSettings (int inputs, int outputs); // <--- NUEVO: Configuración de canales
+
+    // El disparador principal
     bool generateProject (std::string destinationPath);
 
 private:
     std::string projectName;
-    std::string pluginCode;
-    PluginType currentType = PluginType::Effect;
-    
-    // Método interno para crear la estructura de carpetas
-    bool createDirectoryStructure();
+    std::string customCode; 
+    int numInputs = 2;
+    int numOutputs = 2;
+
+    // Métodos internos
+    bool createDirectoryStructure (std::string projectPath);
+    bool writeTestFile (std::string projectPath); // <--- NUEVO: Para probar que escribimos bien
 };
+
+/**
+Este archivo define "qué variables tenemos". 
+Hemos añadido customCode y configuración de canales. */
