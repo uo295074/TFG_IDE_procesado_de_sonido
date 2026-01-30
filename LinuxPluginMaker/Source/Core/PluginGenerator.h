@@ -30,7 +30,7 @@ private:
 
     // Métodos internos
     bool createDirectoryStructure (std::string projectPath);
-    bool writeTestFile (std::string projectPath); // <--- NUEVO: Para probar que escribimos bien
+    bool createPluginFiles (std::string projectPath); 
 };
 
 /**

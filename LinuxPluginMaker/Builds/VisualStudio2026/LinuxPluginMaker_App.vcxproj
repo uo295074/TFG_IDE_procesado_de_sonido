@@ -1862,6 +1862,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Source\Core\PluginGenerator.h"/>
+    <ClInclude Include="..\..\Source\Core\Templates.h"/>
     <ClInclude Include="..\..\Source\MainComponent.h"/>
     <ClInclude Include="..\..\..\..\JUCE\modules\juce_core\containers\juce_AbstractFifo.h"/>
     <ClInclude Include="..\..\..\..\JUCE\modules\juce_core\containers\juce_Array.h"/>

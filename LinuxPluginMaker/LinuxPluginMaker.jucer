@@ -11,6 +11,7 @@
               file="Source/Core/PluginGenerator.cpp"/>
         <FILE id="Uv2L0S" name="PluginGenerator.h" compile="0" resource="0"
               file="Source/Core/PluginGenerator.h"/>
+        <FILE id="p2uNYt" name="Templates.h" compile="0" resource="0" file="Source/Core/Templates.h"/>
       </GROUP>
       <FILE id="zLNdFC" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
       <FILE id="g5QT8k" name="MainComponent.h" compile="0" resource="0" file="Source/MainComponent.h"/>

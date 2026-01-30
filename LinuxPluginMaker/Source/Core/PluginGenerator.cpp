@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream> // Necesario para escribir dentro de archivos
 #include <iostream>
+#include "Templates.h"
 
 namespace fs = std::filesystem;
 
@@ -41,7 +42,7 @@ bool PluginGenerator::generateProject (std::string destinationPath)
         createDirectoryStructure(projectPath.string());
 
         // 3. Escribir el archivo con el código del usuario (Prueba)
-        return writeTestFile(projectPath.string());
+        return createPluginFiles(projectPath.string());
     }
     catch (const std::exception& e)
     {
@@ -57,24 +58,38 @@ bool PluginGenerator::createDirectoryStructure (std::string pathStr)
     return true;
 }
 
-bool PluginGenerator::writeTestFile (std::string pathStr)
+bool PluginGenerator::createPluginFiles(std::string projectPath)
 {
-    fs::path p(pathStr);
-    // Creamos un archivo llamado "UserCode.cpp" dentro de la carpeta Source
-    fs::path filePath = p / "Source" / "UserCode.cpp";
+    fs::path p(projectPath);
+    fs::path sourceDir = p / "Source";
 
-    std::ofstream outfile (filePath);
+    // 1. Escribir el Header (.h) tal cual, sin cambios
+    std::ofstream headerFile(sourceDir / "PluginProcessor.h");
+    if (!headerFile.is_open()) return false;
     
-    if (!outfile.is_open()) return false;
+    headerFile << Templates::processorHeader;
+    headerFile.close();
 
-    // Escribimos una cabecera y el código del usuario
-    outfile << "// Archivo generado automáticamente por LinuxPluginMaker\n";
-    outfile << "// Configuración I/O: " << numInputs << " In / " << numOutputs << " Out\n\n";
-    outfile << "void processBlock (float* buffer, int numSamples)\n{\n";
-    outfile << customCode << "\n"; // <--- Aquí inyectamos lo que escribió el usuario
-    outfile << "}\n";
+    // 2. Preparar el Cpp (.cpp) con el código del usuario
+    std::string cppContent = Templates::processorCpp;
+    
+    // Buscamos la etiqueta mágica "*** USER_CODE_TAG ***"
+    std::string tag = "// *** USER_CODE_TAG ***";
+    size_t pos = cppContent.find(tag);
 
-    outfile.close();
+    if (pos != std::string::npos)
+    {
+        // Reemplazamos la etiqueta por el código que escribió Marcos en la ventana
+        cppContent.replace(pos, tag.length(), customCode);
+    }
+
+    // 3. Escribir el archivo Cpp final
+    std::ofstream cppFile(sourceDir / "PluginProcessor.cpp");
+    if (!cppFile.is_open()) return false;
+
+    cppFile << cppContent;
+    cppFile.close();
+
     return true;
 }
 

@@ -2157,6 +2157,9 @@
     <ClInclude Include="..\..\Source\Core\PluginGenerator.h">
       <Filter>LinuxPluginMaker\Source\Core</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Core\Templates.h">
+      <Filter>LinuxPluginMaker\Source\Core</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\MainComponent.h">
       <Filter>LinuxPluginMaker\Source</Filter>
     </ClInclude>
