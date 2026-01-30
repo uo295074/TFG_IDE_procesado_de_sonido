@@ -63,32 +63,43 @@ bool PluginGenerator::createPluginFiles(std::string projectPath)
     fs::path p(projectPath);
     fs::path sourceDir = p / "Source";
 
-    // 1. Escribir el Header (.h) tal cual, sin cambios
+    // --- 1. PROCESADOR (Lo que ya tenías) ---
     std::ofstream headerFile(sourceDir / "PluginProcessor.h");
-    if (!headerFile.is_open()) return false;
-    
-    headerFile << Templates::processorHeader;
-    headerFile.close();
+    if (headerFile.is_open()) { headerFile << Templates::processorHeader; headerFile.close(); }
 
-    // 2. Preparar el Cpp (.cpp) con el código del usuario
     std::string cppContent = Templates::processorCpp;
-    
-    // Buscamos la etiqueta mágica "*** USER_CODE_TAG ***"
     std::string tag = "// *** USER_CODE_TAG ***";
     size_t pos = cppContent.find(tag);
-
     if (pos != std::string::npos)
-    {
-        // Reemplazamos la etiqueta por el código que escribió Marcos en la ventana
         cppContent.replace(pos, tag.length(), customCode);
+
+    std::ofstream cppFile(sourceDir / "PluginProcessor.cpp");
+    if (cppFile.is_open()) { cppFile << cppContent; cppFile.close(); }
+
+
+    // --- 2. EDITOR (NUEVO) ---
+    // Escribimos PluginEditor.h
+    std::ofstream editorHeaderFile(sourceDir / "PluginEditor.h");
+    if (editorHeaderFile.is_open()) { 
+        editorHeaderFile << Templates::editorHeader; 
+        editorHeaderFile.close(); 
     }
 
-    // 3. Escribir el archivo Cpp final
-    std::ofstream cppFile(sourceDir / "PluginProcessor.cpp");
-    if (!cppFile.is_open()) return false;
+    // Escribimos PluginEditor.cpp
+    std::ofstream editorCppFile(sourceDir / "PluginEditor.cpp");
+    if (editorCppFile.is_open()) { 
+        editorCppFile << Templates::editorCpp; 
+        editorCppFile.close(); 
+    }
 
-    cppFile << cppContent;
-    cppFile.close();
+
+    // --- 3. CMAKE (NUEVO) ---
+    // Este va en la raíz del proyecto, no en Source
+    std::ofstream cmakeFile(p / "CMakeLists.txt");
+    if (cmakeFile.is_open()) { 
+        cmakeFile << Templates::cmakeFile; 
+        cmakeFile.close(); 
+    }
 
     return true;
 }

@@ -113,5 +113,89 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
     return new AudioPluginAudioProcessor();
 }
 )";
+    // --- NUEVO: Cabecera del Editor ---
+    const std::string editorHeader = R"(
+#pragma once
+#include <JuceHeader.h>
+#include "PluginProcessor.h"
 
+class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor
+{
+public:
+    AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor&);
+    ~AudioPluginAudioProcessorEditor() override;
+
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+private:
+    AudioPluginAudioProcessor& audioProcessor;
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
+};
+)";
+
+    // --- NUEVO: Código del Editor ---
+    const std::string editorCpp = R"(
+#include "PluginProcessor.h"
+#include "PluginEditor.h"
+
+AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor& p)
+    : AudioProcessorEditor (&p), audioProcessor (p)
+{
+    setSize (400, 300);
+}
+
+AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor() {}
+
+void AudioPluginAudioProcessorEditor::paint (juce::Graphics& g)
+{
+    g.fillAll (juce::Colours::black);
+    g.setColour (juce::Colours::white);
+    g.setFont (15.0f);
+    g.drawFittedText ("Plugin Generado por LinuxPluginMaker", getLocalBounds(), juce::Justification::centred, 1);
+}
+
+void AudioPluginAudioProcessorEditor::resized() {}
+)";
+
+    // --- NUEVO: Archivo CMake (Instrucciones de compilación) ---
+    // OJO: Asumimos que JUCE está en la carpeta compartida.
+    const std::string cmakeFile = R"(
+cmake_minimum_required(VERSION 3.15)
+project(AUDIO_PLUGIN_PROJECT VERSION 0.0.1)
+
+# Le decimos a CMake donde buscar JUCE (Ruta absoluta de tu VM)
+add_subdirectory(/media/sf_TFG_COMPARTIDO/JUCE subprojects/juce)
+
+juce_add_plugin(AudioPlugin
+    COMPANY_NAME "UPM_TFG"
+    IS_SYNTH FALSE
+    NEEDS_MIDI_INPUT FALSE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
+    EDITOR_WANTS_KEYBOARD_FOCUS TRUE
+    COPY_PLUGIN_AFTER_BUILD TRUE
+    PLUGIN_MANUFACTURER_CODE Juce
+    PLUGIN_CODE Dem0
+    FORMATS VST3 Standalone
+    PRODUCT_NAME "Mi Plugin Generado")
+
+target_sources(AudioPlugin
+    PRIVATE
+        Source/PluginProcessor.cpp
+        Source/PluginProcessor.h
+        Source/PluginEditor.cpp
+        Source/PluginEditor.h)
+
+target_compile_definitions(AudioPlugin
+    PUBLIC
+        JUCE_WEB_BROWSER_NO_WEBKIT_DEPENDENCY=1
+        JUCE_USE_CURL=0
+        JUCE_VST3_CAN_REPLACE_VST2=0)
+
+target_link_libraries(AudioPlugin
+    PRIVATE
+        juce::juce_audio_utils
+        juce::juce_recommended_config_flags)
+)";
 }
