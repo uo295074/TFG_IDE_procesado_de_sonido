@@ -142,11 +142,23 @@ extern "C" {
 cmake_minimum_required(VERSION 3.15)
 project(SimpleLv2Plugin)
 
+# --- LLAVE 1: Configuración de CMake ---
+set(JUCE_USE_CURL OFF CACHE BOOL "Disable CURL" FORCE)
+set(JUCE_WEB_BROWSER OFF CACHE BOOL "Disable Web Browser" FORCE)
+
+# --- LLAVE 2: Inyección en el C++ (OBLIGATORIO) ---
+# Esto asegura que el código fuente vea el "0" y no compile las llamadas a curl
+add_compile_definitions(JUCE_USE_CURL=0)
+add_compile_definitions(JUCE_WEB_BROWSER=0)
+
+# Añadimos JUCE
 add_subdirectory(/media/sf_TFG_COMPARTIDO/JUCE subprojects/juce)
 
+# Librería DSP
 add_library(DspLib STATIC Source/PluginProcessor.cpp)
 target_link_libraries(DspLib PRIVATE juce::juce_core juce::juce_audio_basics)
 
+# Plugin LV2
 add_library(MiEfectoDSP MODULE Source/PluginEditor.cpp)
 set_target_properties(MiEfectoDSP PROPERTIES PREFIX "")
 set_target_properties(MiEfectoDSP PROPERTIES SUFFIX ".so")
@@ -157,6 +169,7 @@ target_link_libraries(MiEfectoDSP PRIVATE
     juce::juce_audio_basics
 )
 
+# Archivos TTL
 file(WRITE ${CMAKE_BINARY_DIR}/manifest.ttl 
 "@prefix lv2:  <http://lv2plug.in/ns/lv2core#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
