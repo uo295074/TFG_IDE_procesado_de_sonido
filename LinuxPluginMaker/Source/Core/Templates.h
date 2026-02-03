@@ -1,7 +1,7 @@
 /*
   ==============================================================================
     Source/Core/Templates.h
-    Almacén de cadenas de texto con el código base de JUCE.
+    (Versión FINAL: Con extern "C" para que Reaper entienda el nombre)
   ==============================================================================
 */
 
@@ -10,192 +10,171 @@
 
 namespace Templates
 {
-    // Usamos R"(...)" para poder escribir strings de muchas líneas sin liarnos con las comillas
-    
-    const std::string processorHeader = R"(
+    // 1. DSP HEADER (Igual que antes)
+    const std::string processorHeader = R"jv(
 #pragma once
-#include <JuceHeader.h>
+#include <juce_audio_basics/juce_audio_basics.h>
+#include <vector>
 
-class AudioPluginAudioProcessor  : public juce::AudioProcessor
+class DspEngine
 {
 public:
-    AudioPluginAudioProcessor();
-    ~AudioPluginAudioProcessor() override;
-
-    void prepareToPlay (double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override;
-    bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
-    void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
-
-    juce::AudioProcessorEditor* createEditor() override;
-    bool hasEditor() const override;
-    const juce::String getName() const override;
-    bool acceptsMidi() const override;
-    bool producesMidi() const override;
-    bool isMidiEffect() const override;
-    double getTailLengthSeconds() const override;
-    int getNumPrograms() override;
-    int getCurrentProgram() override;
-    void setCurrentProgram (int index) override;
-    const juce::String getProgramName (int index) override;
-    void changeProgramName (int index, const juce::String& newName) override;
-    void getStateInformation (juce::MemoryBlock& destData) override;
-    void setStateInformation (const void* data, int sizeInBytes) override;
-
+    DspEngine();
+    ~DspEngine();
+    void prepare(double sampleRate, int samplesPerBlock);
+    void process(float* const* inputChannelData, float* const* outputChannelData, int numChannels, int numSamples);
 private:
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
+    double currentSampleRate = 44100.0;
+    int currentBlockSize = 512;
 };
-)";
+)jv";
 
-    const std::string processorCpp = R"(
+    // 2. DSP CPP (Igual que antes)
+    const std::string processorCpp = R"jv(
 #include "PluginProcessor.h"
-#include "PluginEditor.h"
 
-AudioPluginAudioProcessor::AudioPluginAudioProcessor()
-#ifndef JucePlugin_PreferredChannelConfigurations
-     : AudioProcessor (BusesProperties()
-                     #if ! JucePlugin_IsMidiEffect
-                      #if ! JucePlugin_IsSynth
-                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                      #endif
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
-                     #endif
-                       )
-#endif
+DspEngine::DspEngine() {}
+DspEngine::~DspEngine() {}
+
+void DspEngine::prepare(double sampleRate, int samplesPerBlock)
 {
+    currentSampleRate = sampleRate;
+    currentBlockSize = samplesPerBlock;
 }
 
-AudioPluginAudioProcessor::~AudioPluginAudioProcessor() {}
-
-const juce::String AudioPluginAudioProcessor::getName() const { return JucePlugin_Name; }
-bool AudioPluginAudioProcessor::acceptsMidi() const { return false; }
-bool AudioPluginAudioProcessor::producesMidi() const { return false; }
-bool AudioPluginAudioProcessor::isMidiEffect() const { return false; }
-double AudioPluginAudioProcessor::getTailLengthSeconds() const { return 0.0; }
-int AudioPluginAudioProcessor::getNumPrograms() { return 1; }
-int AudioPluginAudioProcessor::getCurrentProgram() { return 0; }
-void AudioPluginAudioProcessor::setCurrentProgram (int index) {}
-const juce::String AudioPluginAudioProcessor::getProgramName (int index) { return {}; }
-void AudioPluginAudioProcessor::changeProgramName (int index, const juce::String& newName) {}
-
-void AudioPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock) {}
-void AudioPluginAudioProcessor::releaseResources() {}
-
-bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+void DspEngine::process(float* const* inputChannelData, float* const* outputChannelData, int numChannels, int numSamples)
 {
-    return true; // Simplificado para el tutorial
-}
+    juce::AudioBuffer<float> buffer(outputChannelData, numChannels, numSamples);
 
-void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
-{
-    juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels  = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
+    if (inputChannelData != outputChannelData)
+    {
+        for (int i = 0; i < numChannels; ++i)
+            buffer.copyFrom(i, 0, inputChannelData[i], numSamples);
+    }
 
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
-
-    // Datos útiles para el usuario
-    const int numSamples = buffer.getNumSamples();
-    const int numChannels = buffer.getNumChannels();
+    auto totalNumInputChannels = numChannels;
+    auto totalNumOutputChannels = numChannels;
 
     // *** USER_CODE_TAG ***
 }
+)jv";
 
-bool AudioPluginAudioProcessor::hasEditor() const { return true; }
-juce::AudioProcessorEditor* AudioPluginAudioProcessor::createEditor() { return nullptr; /* Haremos el editor visual más adelante */ }
-void AudioPluginAudioProcessor::getStateInformation (juce::MemoryBlock& destData) {}
-void AudioPluginAudioProcessor::setStateInformation (const void* data, int sizeInBytes) {}
-
-// Función factoría estándar
-juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
-{
-    return new AudioPluginAudioProcessor();
-}
-)";
-    // --- NUEVO: Cabecera del Editor ---
-    const std::string editorHeader = R"(
+    // 3. DUMMY HEADER (Igual que antes)
+    const std::string editorHeader = R"jv(
 #pragma once
-#include <JuceHeader.h>
+)jv";
+
+    // 4. LV2 WRAPPER (AQUÍ ESTÁ EL CAMBIO CRÍTICO: extern "C")
+    const std::string editorCpp = R"jv(
+#include <cstdint>
+#include <cstdlib>
+#include <vector>
+#include <lv2/core/lv2.h>
 #include "PluginProcessor.h"
 
-class AudioPluginAudioProcessorEditor  : public juce::AudioProcessorEditor
-{
-public:
-    AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor&);
-    ~AudioPluginAudioProcessorEditor() override;
+#define PORT_AUDIO_IN_L  0
+#define PORT_AUDIO_IN_R  1
+#define PORT_AUDIO_OUT_L 2
+#define PORT_AUDIO_OUT_R 3
 
-    void paint (juce::Graphics&) override;
-    void resized() override;
-
-private:
-    AudioPluginAudioProcessor& audioProcessor;
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
+struct Lv2Plugin {
+    float* inputL; float* inputR;
+    float* outputL; float* outputR;
+    DspEngine* dsp;
+    std::vector<float*> inputChans;
+    std::vector<float*> outputChans;
 };
-)";
 
-    // --- NUEVO: Código del Editor ---
-    const std::string editorCpp = R"(
-#include "PluginProcessor.h"
-#include "PluginEditor.h"
-
-AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAudioProcessor& p)
-    : AudioProcessorEditor (&p), audioProcessor (p)
-{
-    setSize (400, 300);
+static LV2_Handle instantiate(const LV2_Descriptor*, double rate, const char*, const LV2_Feature* const*) {
+    Lv2Plugin* plugin = new Lv2Plugin();
+    plugin->dsp = new DspEngine();
+    plugin->dsp->prepare(rate, 512);
+    plugin->inputChans.resize(2);
+    plugin->outputChans.resize(2);
+    return (LV2_Handle)plugin;
 }
 
-AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor() {}
-
-void AudioPluginAudioProcessorEditor::paint (juce::Graphics& g)
-{
-    g.fillAll (juce::Colours::black);
-    g.setColour (juce::Colours::white);
-    g.setFont (15.0f);
-    g.drawFittedText ("Plugin Generado por LinuxPluginMaker", getLocalBounds(), juce::Justification::centred, 1);
+static void connect_port(LV2_Handle instance, uint32_t port, void* data) {
+    Lv2Plugin* plugin = (Lv2Plugin*)instance;
+    switch (port) {
+        case PORT_AUDIO_IN_L:  plugin->inputL = (float*)data; break;
+        case PORT_AUDIO_IN_R:  plugin->inputR = (float*)data; break;
+        case PORT_AUDIO_OUT_L: plugin->outputL = (float*)data; break;
+        case PORT_AUDIO_OUT_R: plugin->outputR = (float*)data; break;
+    }
 }
 
-void AudioPluginAudioProcessorEditor::resized() {}
-)";
+static void run(LV2_Handle instance, uint32_t n_samples) {
+    Lv2Plugin* plugin = (Lv2Plugin*)instance;
+    plugin->inputChans[0] = plugin->inputL;
+    plugin->inputChans[1] = plugin->inputR;
+    plugin->outputChans[0] = plugin->outputL;
+    plugin->outputChans[1] = plugin->outputR;
 
-    // --- NUEVO: Archivo CMake (Instrucciones de compilación) ---
-    // OJO: Asumimos que JUCE está en la carpeta compartida.
-    const std::string cmakeFile = R"(
+    plugin->dsp->process(plugin->inputChans.data(), plugin->outputChans.data(), 2, (int)n_samples);
+}
+
+static void cleanup(LV2_Handle instance) {
+    Lv2Plugin* plugin = (Lv2Plugin*)instance;
+    delete plugin->dsp;
+    delete plugin;
+}
+
+static void activate(LV2_Handle) {}
+static void deactivate(LV2_Handle) {}
+static const void* extension_data(const char*) { return NULL; }
+
+static const LV2_Descriptor descriptor = {
+    "http://upm.es/plugins/MiEfectoTFG",
+    instantiate, connect_port, activate, run, deactivate, cleanup, extension_data
+};
+
+// --- EL FIX: extern "C" PARA QUE REAPER LO ENCUENTRE ---
+extern "C" {
+    LV2_SYMBOL_EXPORT const LV2_Descriptor* lv2_descriptor(uint32_t index) {
+        return index == 0 ? &descriptor : NULL;
+    }
+}
+)jv";
+
+    // 5. CMAKE (Igual que la última vez que funcionó)
+    const std::string cmakeFile = R"jv(
 cmake_minimum_required(VERSION 3.15)
-project(AUDIO_PLUGIN_PROJECT VERSION 0.0.1)
+project(SimpleLv2Plugin)
 
-# Le decimos a CMake donde buscar JUCE (Ruta absoluta de tu VM)
 add_subdirectory(/media/sf_TFG_COMPARTIDO/JUCE subprojects/juce)
 
-juce_add_plugin(AudioPlugin
-    COMPANY_NAME "UPM_TFG"
-    IS_SYNTH FALSE
-    NEEDS_MIDI_INPUT FALSE
-    NEEDS_MIDI_OUTPUT FALSE
-    IS_MIDI_EFFECT FALSE
-    EDITOR_WANTS_KEYBOARD_FOCUS TRUE
-    COPY_PLUGIN_AFTER_BUILD TRUE
-    PLUGIN_MANUFACTURER_CODE Juce
-    PLUGIN_CODE Dem0
-    FORMATS VST3 Standalone
-    PRODUCT_NAME "Mi Plugin Generado")
+add_library(DspLib STATIC Source/PluginProcessor.cpp)
+target_link_libraries(DspLib PRIVATE juce::juce_core juce::juce_audio_basics)
 
-target_sources(AudioPlugin
-    PRIVATE
-        Source/PluginProcessor.cpp
-        Source/PluginProcessor.h
-        Source/PluginEditor.cpp
-        Source/PluginEditor.h)
+add_library(MiEfectoDSP MODULE Source/PluginEditor.cpp)
+set_target_properties(MiEfectoDSP PROPERTIES PREFIX "")
+set_target_properties(MiEfectoDSP PROPERTIES SUFFIX ".so")
 
-target_compile_definitions(AudioPlugin
-    PUBLIC
-        JUCE_WEB_BROWSER_NO_WEBKIT_DEPENDENCY=1
-        JUCE_USE_CURL=0
-        JUCE_VST3_CAN_REPLACE_VST2=0)
+target_link_libraries(MiEfectoDSP PRIVATE 
+    DspLib 
+    juce::juce_core 
+    juce::juce_audio_basics
+)
 
-target_link_libraries(AudioPlugin
-    PRIVATE
-        juce::juce_audio_utils
-        juce::juce_recommended_config_flags)
-)";
+file(WRITE ${CMAKE_BINARY_DIR}/manifest.ttl 
+"@prefix lv2:  <http://lv2plug.in/ns/lv2core#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+<http://upm.es/plugins/MiEfectoTFG> a lv2:Plugin ; lv2:binary <MiEfectoDSP.so> ; rdfs:seeAlso <plugin.ttl> .")
+
+file(WRITE ${CMAKE_BINARY_DIR}/plugin.ttl 
+"@prefix lv2:  <http://lv2plug.in/ns/lv2core#> .
+@prefix doap: <http://usefulinc.com/ns/doap#> .
+<http://upm.es/plugins/MiEfectoTFG> a lv2:Plugin, lv2:AudioPlugin ;
+    doap:name \"Mi Efecto TFG (Custom)\" ;
+    lv2:port [ a lv2:InputPort, lv2:AudioPort ; lv2:index 0 ; lv2:symbol \"in_l\" ; lv2:name \"In L\" ],
+             [ a lv2:InputPort, lv2:AudioPort ; lv2:index 1 ; lv2:symbol \"in_r\" ; lv2:name \"In R\" ],
+             [ a lv2:OutputPort, lv2:AudioPort ; lv2:index 2 ; lv2:symbol \"out_l\" ; lv2:name \"Out L\" ],
+             [ a lv2:OutputPort, lv2:AudioPort ; lv2:index 3 ; lv2:symbol \"out_r\" ; lv2:name \"Out R\" ] .")
+
+add_custom_command(TARGET MiEfectoDSP POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/manifest.ttl $<TARGET_FILE_DIR:MiEfectoDSP>
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/plugin.ttl $<TARGET_FILE_DIR:MiEfectoDSP>
+)
+)jv";
 }

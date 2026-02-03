@@ -21,7 +21,19 @@ MainComponent::MainComponent()
 
     codeEditor.setMultiLine (true); // Permitir varias líneas
     codeEditor.setReturnKeyStartsNewLine (true); // Enter baja de línea
-    codeEditor.setText ("// Escribe aquí tu código DSP...\nfor (int i=0; i<numSamples; ++i)\n{\n    buffer[i] *= 0.5f; // Ganancia simple\n}");
+    codeEditor.setText (R"(// Escribe aquí tu código DSP...
+// Ejemplo: Reducir ganancia al 50%
+
+for (int channel = 0; channel < numChannels; ++channel)
+{
+    auto* channelData = buffer.getWritePointer (channel);
+
+    for (int sample = 0; sample < numSamples; ++sample)
+    {
+        // channelData[sample] es la muestra actual
+        channelData[sample] *= 0.5f; 
+    }
+})");
     addAndMakeVisible (codeEditor);
 
     // 3. Botón Generar

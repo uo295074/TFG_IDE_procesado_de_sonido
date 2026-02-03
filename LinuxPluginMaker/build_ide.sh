@@ -13,7 +13,7 @@ cp -r $ORIGEN/* $DESTINO/
 
 # 4. Entrar y Compilar
 cd $DESTINO/Builds/LinuxMakefile
-make -j4 CPPFLAGS="-I/media/sf_TFG_COMPARTIDA/JUCE/modules -I../../JuceLibraryCode"
+make -j4 CPPFLAGS="-I/media/sf_TFG_COMPARTIDO/JUCE/modules -I../../JuceLibraryCode"
 
 # 5. Ejecutar si todo fue bien
 if [ $? -eq 0 ]; then
