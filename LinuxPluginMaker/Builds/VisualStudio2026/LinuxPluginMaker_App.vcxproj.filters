@@ -2328,13 +2328,22 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Source\Core\PluginCanvas.h">
+      <Filter>LinuxPluginMaker\Source\Core</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Core\PluginData.h">
       <Filter>LinuxPluginMaker\Source\Core</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\Core\PluginGenerator.h">
       <Filter>LinuxPluginMaker\Source\Core</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Source\Core\PropertiesPanel.h">
+      <Filter>LinuxPluginMaker\Source\Core</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Core\Templates.h">
+      <Filter>LinuxPluginMaker\Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Core\VisualElement.h">
       <Filter>LinuxPluginMaker\Source\Core</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Source\MainComponent.h">

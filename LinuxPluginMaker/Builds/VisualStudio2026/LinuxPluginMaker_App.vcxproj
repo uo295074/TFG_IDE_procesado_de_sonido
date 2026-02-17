@@ -2000,9 +2000,12 @@
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_gui_extra.cpp"/>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Source\Core\PluginCanvas.h"/>
     <ClInclude Include="..\..\Source\Core\PluginData.h"/>
     <ClInclude Include="..\..\Source\Core\PluginGenerator.h"/>
+    <ClInclude Include="..\..\Source\Core\PropertiesPanel.h"/>
     <ClInclude Include="..\..\Source\Core\Templates.h"/>
+    <ClInclude Include="..\..\Source\Core\VisualElement.h"/>
     <ClInclude Include="..\..\Source\MainComponent.h"/>
     <ClInclude Include="..\..\..\..\JUCE\modules\juce_audio_basics\audio_play_head\juce_AudioPlayHead.h"/>
     <ClInclude Include="..\..\..\..\JUCE\modules\juce_audio_basics\buffers\juce_AudioChannelSet.h"/>

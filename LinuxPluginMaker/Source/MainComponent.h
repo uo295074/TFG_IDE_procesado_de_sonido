@@ -3,42 +3,46 @@
     Source/MainComponent.h
   ==============================================================================
 */
-
 #pragma once
-#include <juce_gui_extra/juce_gui_extra.h>
-#include "Core/PluginData.h"      // <--- Importante
-#include "Core/PluginGenerator.h" // <--- Tu generador
+#include <juce_gui_basics/juce_gui_basics.h>
+#include "Core/PluginData.h"
+#include "Core/PluginGenerator.h"
+#include "Core/PluginCanvas.h"
+#include "Core/PropertiesPanel.h"
 
-class MainComponent : public juce::Component
+// 1. Heredamos de MenuBarModel
+class MainComponent : public juce::Component,
+                      public juce::MenuBarModel 
 {
 public:
     MainComponent();
     ~MainComponent() override;
 
-    void paint (juce::Graphics&) override;
+    void paint(juce::Graphics&) override;
     void resized() override;
 
+    // 2. Métodos OBLIGATORIOS del Menú
+    juce::StringArray getMenuBarNames() override;
+    juce::PopupMenu getMenuForIndex(int topLevelMenuIndex, const juce::String& menuName) override;
+    void menuItemSelected(int menuItemID, int topLevelMenuIndex) override;
+
 private:
-    // --- NUESTRO MODELO DE DATOS ---
+    // 3. El componente visual de la barra
+    juce::MenuBarComponent menuBar;
+
+    // (El resto sigue igual)
+    juce::Label toolsLabel { {}, "Herramientas" };
+    juce::Label listLabel { {}, "Lienzo de Diseño" };
+
+    juce::TextButton addSliderBtn { "+ Slider" };
+    juce::TextButton addToggleBtn { "+ Switch" };
+    juce::TextButton clearBtn { "Borrar Todo" };
+    juce::TextButton generateBtn { "GENERAR LV2" };
+
+    PluginCanvas canvas;
+    PropertiesPanel propertiesPanel;
     PluginData::Project project;
     PluginGenerator generator;
 
-    // --- ZONA IZQUIERDA (HERRAMIENTAS) ---
-    juce::Label toolsLabel { {}, "Herramientas" };
-    juce::TextButton addSliderBtn { "+ Añadir Slider" };
-    juce::TextButton addToggleBtn { "+ Añadir Switch" };
-    juce::TextButton clearBtn     { "Borrar Todo" };
-
-    // --- ZONA CENTRAL (VISUALIZACIÓN) ---
-    juce::Label listLabel { {}, "Componentes del Plugin" };
-    // Usamos un TextEditor simple para mostrar la lista por ahora
-    juce::TextEditor componentsLog; 
-
-    // --- BOTÓN PRINCIPAL ---
-    juce::TextButton generateBtn { "GENERAR PROYECTO LV2" };
-
-    // Función auxiliar para actualizar la lista visual
-    void updateListView();
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };
