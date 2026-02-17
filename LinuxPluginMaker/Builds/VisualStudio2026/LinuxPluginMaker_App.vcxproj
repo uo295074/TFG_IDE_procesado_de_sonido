@@ -2000,6 +2000,7 @@
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_gui_extra.cpp"/>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Source\Core\PluginData.h"/>
     <ClInclude Include="..\..\Source\Core\PluginGenerator.h"/>
     <ClInclude Include="..\..\Source\Core\Templates.h"/>
     <ClInclude Include="..\..\Source\MainComponent.h"/>

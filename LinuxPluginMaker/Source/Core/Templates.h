@@ -1,7 +1,7 @@
 /*
   ==============================================================================
     Source/Core/Templates.h
-    (Versión FINAL: Con extern "C" para que Reaper entienda el nombre)
+    (Versión DINÁMICA: Lista para aceptar N componentes)
   ==============================================================================
 */
 
@@ -10,7 +10,9 @@
 
 namespace Templates
 {
-    // 1. DSP HEADER (Igual que antes)
+    // ==============================================================================
+    // 1. DSP HEADER: Ahora recibe un vector de parámetros genérico
+    // ==============================================================================
     const std::string processorHeader = R"jv(
 #pragma once
 #include <juce_audio_basics/juce_audio_basics.h>
@@ -21,15 +23,23 @@ class DspEngine
 public:
     DspEngine();
     ~DspEngine();
+
     void prepare(double sampleRate, int samplesPerBlock);
-    void process(float* const* inputChannelData, float* const* outputChannelData, int numChannels, int numSamples);
+    
+    // --- CAMBIO: 'params' es un vector con TODOS los valores de los sliders ---
+    void process(float* const* inputChannelData, float* const* outputChannelData, 
+                 int numChannels, int numSamples, 
+                 const std::vector<float>& params);
+
 private:
     double currentSampleRate = 44100.0;
     int currentBlockSize = 512;
 };
 )jv";
 
-    // 2. DSP CPP (Igual que antes)
+    // ==============================================================================
+    // 2. DSP CPP: Ejemplo de uso de los parámetros
+    // ==============================================================================
     const std::string processorCpp = R"jv(
 #include "PluginProcessor.h"
 
@@ -42,29 +52,44 @@ void DspEngine::prepare(double sampleRate, int samplesPerBlock)
     currentBlockSize = samplesPerBlock;
 }
 
-void DspEngine::process(float* const* inputChannelData, float* const* outputChannelData, int numChannels, int numSamples)
+void DspEngine::process(float* const* inputChannelData, float* const* outputChannelData, 
+                        int numChannels, int numSamples, 
+                        const std::vector<float>& params)
 {
     juce::AudioBuffer<float> buffer(outputChannelData, numChannels, numSamples);
 
+    // 1. Copiar entrada a salida
     if (inputChannelData != outputChannelData)
     {
         for (int i = 0; i < numChannels; ++i)
             buffer.copyFrom(i, 0, inputChannelData[i], numSamples);
     }
 
-    auto totalNumInputChannels = numChannels;
-    auto totalNumOutputChannels = numChannels;
+    // 2. LEER PARÁMETROS (Protección por si el usuario no ha puesto ninguno)
+    float gain = 1.0f;
+    if (params.size() > 0) 
+    {
+        gain = params[0]; // El primer slider controla la ganancia (ejemplo)
+    }
+
+    // 3. PROCESAMIENTO DEMO
+    buffer.applyGain(gain);
 
     // *** USER_CODE_TAG ***
 }
 )jv";
 
-    // 3. DUMMY HEADER (Igual que antes)
+    // ==============================================================================
+    // 3. DUMMY HEADER (Sin cambios)
+    // ==============================================================================
     const std::string editorHeader = R"jv(
 #pragma once
 )jv";
 
-    // 4. LV2 WRAPPER (AQUÍ ESTÁ EL CAMBIO CRÍTICO: extern "C")
+    // ==============================================================================
+    // 4. LV2 WRAPPER INTELIGENTE
+    // Usamos {{NUM_PARAMS}} para saber cuántos sliders hay
+    // ==============================================================================
     const std::string editorCpp = R"jv(
 #include <cstdint>
 #include <cstdlib>
@@ -76,10 +101,18 @@ void DspEngine::process(float* const* inputChannelData, float* const* outputChan
 #define PORT_AUDIO_IN_R  1
 #define PORT_AUDIO_OUT_L 2
 #define PORT_AUDIO_OUT_R 3
+// Los puertos de parámetros empiezan en el 4
+
+// --- ETIQUETA QUE EL GENERADOR SUSTITUIRÁ ---
+#define NUM_PARAMS {{NUM_PARAMS}} 
 
 struct Lv2Plugin {
     float* inputL; float* inputR;
     float* outputL; float* outputR;
+    
+    // Vector de punteros para guardar las conexiones de los sliders
+    std::vector<float*> paramPtrs;
+
     DspEngine* dsp;
     std::vector<float*> inputChans;
     std::vector<float*> outputChans;
@@ -91,16 +124,28 @@ static LV2_Handle instantiate(const LV2_Descriptor*, double rate, const char*, c
     plugin->dsp->prepare(rate, 512);
     plugin->inputChans.resize(2);
     plugin->outputChans.resize(2);
+    
+    // Preparamos espacio para los punteros de los parámetros
+    plugin->paramPtrs.resize(NUM_PARAMS, nullptr);
+    
     return (LV2_Handle)plugin;
 }
 
 static void connect_port(LV2_Handle instance, uint32_t port, void* data) {
     Lv2Plugin* plugin = (Lv2Plugin*)instance;
+    
+    // Puertos de Audio Fijos
     switch (port) {
-        case PORT_AUDIO_IN_L:  plugin->inputL = (float*)data; break;
-        case PORT_AUDIO_IN_R:  plugin->inputR = (float*)data; break;
-        case PORT_AUDIO_OUT_L: plugin->outputL = (float*)data; break;
-        case PORT_AUDIO_OUT_R: plugin->outputR = (float*)data; break;
+        case PORT_AUDIO_IN_L:  plugin->inputL = (float*)data; return;
+        case PORT_AUDIO_IN_R:  plugin->inputR = (float*)data; return;
+        case PORT_AUDIO_OUT_L: plugin->outputL = (float*)data; return;
+        case PORT_AUDIO_OUT_R: plugin->outputR = (float*)data; return;
+    }
+
+    // Puertos de Parámetros Dinámicos (4 en adelante)
+    int paramIndex = (int)port - 4;
+    if (paramIndex >= 0 && paramIndex < NUM_PARAMS) {
+        plugin->paramPtrs[paramIndex] = (float*)data;
     }
 }
 
@@ -111,7 +156,17 @@ static void run(LV2_Handle instance, uint32_t n_samples) {
     plugin->outputChans[0] = plugin->outputL;
     plugin->outputChans[1] = plugin->outputR;
 
-    plugin->dsp->process(plugin->inputChans.data(), plugin->outputChans.data(), 2, (int)n_samples);
+    // Recolectar valores actuales de los sliders
+    std::vector<float> currentValues(NUM_PARAMS);
+    for (int i = 0; i < NUM_PARAMS; ++i) {
+        if (plugin->paramPtrs[i] != nullptr)
+            currentValues[i] = *(plugin->paramPtrs[i]);
+        else
+            currentValues[i] = 0.0f; // Valor seguro
+    }
+
+    // Pasamos el vector al DSP
+    plugin->dsp->process(plugin->inputChans.data(), plugin->outputChans.data(), 2, (int)n_samples, currentValues);
 }
 
 static void cleanup(LV2_Handle instance) {
@@ -129,7 +184,6 @@ static const LV2_Descriptor descriptor = {
     instantiate, connect_port, activate, run, deactivate, cleanup, extension_data
 };
 
-// --- EL FIX: extern "C" PARA QUE REAPER LO ENCUENTRE ---
 extern "C" {
     LV2_SYMBOL_EXPORT const LV2_Descriptor* lv2_descriptor(uint32_t index) {
         return index == 0 ? &descriptor : NULL;
@@ -137,44 +191,34 @@ extern "C" {
 }
 )jv";
 
-    // 5. CMAKE (Igual que la última vez que funcionó)
+    // ==============================================================================
+    // 5. CMAKE CON ETIQUETA {{TTL_PORTS}}
+    // ==============================================================================
     const std::string cmakeFile = R"jv(
 cmake_minimum_required(VERSION 3.15)
 project(SimpleLv2Plugin)
 
-# --- LLAVE 1: Configuración de CMake ---
 set(JUCE_USE_CURL OFF CACHE BOOL "Disable CURL" FORCE)
 set(JUCE_WEB_BROWSER OFF CACHE BOOL "Disable Web Browser" FORCE)
-
-# --- LLAVE 2: Inyección en el C++ (OBLIGATORIO) ---
-# Esto asegura que el código fuente vea el "0" y no compile las llamadas a curl
 add_compile_definitions(JUCE_USE_CURL=0)
 add_compile_definitions(JUCE_WEB_BROWSER=0)
 
-# Añadimos JUCE
 add_subdirectory(/media/sf_TFG_COMPARTIDO/JUCE subprojects/juce)
 
-# Librería DSP
 add_library(DspLib STATIC Source/PluginProcessor.cpp)
 target_link_libraries(DspLib PRIVATE juce::juce_core juce::juce_audio_basics)
 
-# Plugin LV2
 add_library(MiEfectoDSP MODULE Source/PluginEditor.cpp)
 set_target_properties(MiEfectoDSP PROPERTIES PREFIX "")
 set_target_properties(MiEfectoDSP PROPERTIES SUFFIX ".so")
+target_link_libraries(MiEfectoDSP PRIVATE DspLib juce::juce_core juce::juce_audio_basics)
 
-target_link_libraries(MiEfectoDSP PRIVATE 
-    DspLib 
-    juce::juce_core 
-    juce::juce_audio_basics
-)
-
-# Archivos TTL
 file(WRITE ${CMAKE_BINARY_DIR}/manifest.ttl 
 "@prefix lv2:  <http://lv2plug.in/ns/lv2core#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 <http://upm.es/plugins/MiEfectoTFG> a lv2:Plugin ; lv2:binary <MiEfectoDSP.so> ; rdfs:seeAlso <plugin.ttl> .")
 
+# --- AQUÍ OCURRE LA MAGIA DEL TTL ---
 file(WRITE ${CMAKE_BINARY_DIR}/plugin.ttl 
 "@prefix lv2:  <http://lv2plug.in/ns/lv2core#> .
 @prefix doap: <http://usefulinc.com/ns/doap#> .
@@ -183,7 +227,11 @@ file(WRITE ${CMAKE_BINARY_DIR}/plugin.ttl
     lv2:port [ a lv2:InputPort, lv2:AudioPort ; lv2:index 0 ; lv2:symbol \"in_l\" ; lv2:name \"In L\" ],
              [ a lv2:InputPort, lv2:AudioPort ; lv2:index 1 ; lv2:symbol \"in_r\" ; lv2:name \"In R\" ],
              [ a lv2:OutputPort, lv2:AudioPort ; lv2:index 2 ; lv2:symbol \"out_l\" ; lv2:name \"Out L\" ],
-             [ a lv2:OutputPort, lv2:AudioPort ; lv2:index 3 ; lv2:symbol \"out_r\" ; lv2:name \"Out R\" ] .")
+             [ a lv2:OutputPort, lv2:AudioPort ; lv2:index 3 ; lv2:symbol \"out_r\" ; lv2:name \"Out R\" ] 
+
+{{TTL_PORTS}}
+
+    .")
 
 add_custom_command(TARGET MiEfectoDSP POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/manifest.ttl $<TARGET_FILE_DIR:MiEfectoDSP>

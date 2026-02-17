@@ -1,109 +1,73 @@
-/*
-  ==============================================================================
-    Ruta: Source/Core/PluginGenerator.cpp
-  ==============================================================================
-*/
-
 #include "PluginGenerator.h"
-#include <filesystem>
-#include <fstream> // Necesario para escribir dentro de archivos
-#include <iostream>
 #include "Templates.h"
 
-namespace fs = std::filesystem;
-
-PluginGenerator::PluginGenerator() {}
-PluginGenerator::~PluginGenerator() {}
-
-void PluginGenerator::setProjectName (std::string name) { projectName = name; }
-void PluginGenerator::setCustomCode (std::string code)  { customCode = code; }
-void PluginGenerator::setIOSettings (int inputs, int outputs) 
-{ 
-    numInputs = inputs; 
-    numOutputs = outputs; 
+PluginGenerator::PluginGenerator()
+{
+    // Apuntamos al Escritorio/MiEfectoDSP
+    desktopDir = juce::File::getSpecialLocation(juce::File::userDesktopDirectory)
+                 .getChildFile("MiEfectoDSP");
 }
 
-bool PluginGenerator::generateProject (std::string destinationPath)
+void PluginGenerator::createPluginFiles(PluginData::Project& project)
 {
-    // Construimos la ruta segura
-    fs::path basePath(destinationPath);
-    fs::path projectPath = basePath / projectName;
+    // 1. Crear carpeta si no existe
+    if (!desktopDir.exists())
+        desktopDir.createDirectory();
 
-    try
+    juce::File sourceDir = desktopDir.getChildFile("Source");
+    if (!sourceDir.exists())
+        sourceDir.createDirectory();
+
+    // 2. GENERAR CONTENIDO TTL DINÁMICO
+    juce::String ttlPorts = "";
+    
+    for (const auto& comp : project.components)
     {
-        // 1. Crear carpeta principal
-        if (fs::exists(projectPath))
+        // La coma inicial para separar del puerto anterior
+        ttlPorts += ",\n             [ "; 
+        
+        if (comp.type == PluginData::ComponentType::Slider)
         {
-            std::cout << "Aviso: La carpeta ya existe, se sobreescribirá." << std::endl;
+            ttlPorts += "a lv2:InputPort, lv2:ControlPort ; ";
+            ttlPorts += "lv2:index " + juce::String(comp.index) + " ; ";
+            // AQUÍ EL FIX DE LAS COMILLAS:
+            ttlPorts += "lv2:symbol \"" + comp.symbol + "\" ; "; 
+            ttlPorts += "lv2:name \"" + comp.name + "\" ; ";
+            ttlPorts += "lv2:default " + juce::String(comp.def) + " ; ";
+            ttlPorts += "lv2:minimum " + juce::String(comp.min) + " ; ";
+            // AQUÍ EL FIX DEL PUNTO Y COMA (lo quitamos al final):
+            ttlPorts += "lv2:maximum " + juce::String(comp.max); 
         }
-        fs::create_directories(projectPath);
+        else if (comp.type == PluginData::ComponentType::Toggle)
+        {
+            ttlPorts += "a lv2:InputPort, lv2:ControlPort, lv2:toggled ; ";
+            ttlPorts += "lv2:index " + juce::String(comp.index) + " ; ";
+            ttlPorts += "lv2:symbol \"" + comp.symbol + "\" ; ";
+            ttlPorts += "lv2:name \"" + comp.name + "\" ; ";
+            ttlPorts += "lv2:default " + juce::String(comp.def) + " ; ";
+            ttlPorts += "lv2:minimum 0 ; lv2:maximum 1"; // Sin punto y coma final
+        }
 
-        // 2. Crear subcarpetas
-        createDirectoryStructure(projectPath.string());
+        ttlPorts += " ] "; // Cerramos el corchete limpiamente
+    }
+    // 3. PREPARAR ARCHIVOS (Sustitución de etiquetas)
+    
+    // -> CMakeLists.txt
+    juce::String cmakeContent = Templates::cmakeFile;
+    cmakeContent = cmakeContent.replace("{{TTL_PORTS}}", ttlPorts);
+    
+    // -> PluginEditor.cpp (Wrapper)
+    juce::String editorContent = Templates::editorCpp;
+    // Sustituimos {{NUM_PARAMS}} por el número real
+    editorContent = editorContent.replace("{{NUM_PARAMS}}", juce::String(project.components.size()));
 
-        // 3. Escribir el archivo con el código del usuario (Prueba)
-        return createPluginFiles(projectPath.string());
-    }
-    catch (const std::exception& e)
-    {
-        std::cout << "ERROR: " << e.what() << std::endl;
-        return false;
-    }
+    // 4. ESCRIBIR EN DISCO
+    desktopDir.getChildFile("CMakeLists.txt").replaceWithText(cmakeContent);
+    sourceDir.getChildFile("PluginProcessor.h").replaceWithText(Templates::processorHeader);
+    sourceDir.getChildFile("PluginProcessor.cpp").replaceWithText(Templates::processorCpp);
+    sourceDir.getChildFile("PluginEditor.h").replaceWithText(Templates::editorHeader);
+    sourceDir.getChildFile("PluginEditor.cpp").replaceWithText(editorContent);
+
+    // Aviso en consola (o AlertWindow si estuviéramos en MainComponent)
+    juce::Logger::writeToLog("Archivos generados en: " + desktopDir.getFullPathName());
 }
-
-bool PluginGenerator::createDirectoryStructure (std::string pathStr)
-{
-    fs::path p(pathStr);
-    fs::create_directories(p / "Source");
-    return true;
-}
-
-bool PluginGenerator::createPluginFiles(std::string projectPath)
-{
-    fs::path p(projectPath);
-    fs::path sourceDir = p / "Source";
-
-    // --- 1. PROCESADOR (Lo que ya tenías) ---
-    std::ofstream headerFile(sourceDir / "PluginProcessor.h");
-    if (headerFile.is_open()) { headerFile << Templates::processorHeader; headerFile.close(); }
-
-    std::string cppContent = Templates::processorCpp;
-    std::string tag = "// *** USER_CODE_TAG ***";
-    size_t pos = cppContent.find(tag);
-    if (pos != std::string::npos)
-        cppContent.replace(pos, tag.length(), customCode);
-
-    std::ofstream cppFile(sourceDir / "PluginProcessor.cpp");
-    if (cppFile.is_open()) { cppFile << cppContent; cppFile.close(); }
-
-
-    // --- 2. EDITOR (NUEVO) ---
-    // Escribimos PluginEditor.h
-    std::ofstream editorHeaderFile(sourceDir / "PluginEditor.h");
-    if (editorHeaderFile.is_open()) { 
-        editorHeaderFile << Templates::editorHeader; 
-        editorHeaderFile.close(); 
-    }
-
-    // Escribimos PluginEditor.cpp
-    std::ofstream editorCppFile(sourceDir / "PluginEditor.cpp");
-    if (editorCppFile.is_open()) { 
-        editorCppFile << Templates::editorCpp; 
-        editorCppFile.close(); 
-    }
-
-
-    // --- 3. CMAKE (NUEVO) ---
-    // Este va en la raíz del proyecto, no en Source
-    std::ofstream cmakeFile(p / "CMakeLists.txt");
-    if (cmakeFile.is_open()) { 
-        cmakeFile << Templates::cmakeFile; 
-        cmakeFile.close(); 
-    }
-
-    return true;
-}
-
-/**
-Este archivo define "cómo funciona". 
-Aquí usamos std::ofstream (output file stream) para crear archivos reales. */
