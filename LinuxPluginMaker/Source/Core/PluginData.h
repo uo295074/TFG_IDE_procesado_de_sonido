@@ -37,16 +37,65 @@ namespace PluginData
         juce::String manufacturer = "Mi Nombre";
         juce::String pluginURI = "http://miweb.com/plugins/miplugin";
         
-        // 2. AÑADIMOS LA VARIABLE DEL ALGORITMO (Por defecto Gain)
         AlgorithmType currentAlgorithm = AlgorithmType::Gain; 
-        
         std::vector<Component> components;
 
-        // Ayudante para añadir sliders rápido
         void addSlider(const juce::String& n, float mn, float mx, float df) {
             Component c; c.type = ComponentType::Slider; c.name = n; 
             c.min = mn; c.max = mx; c.def = df; c.index = components.size();
             components.push_back(c);
+        }
+
+        // --- RU-02: GUARDAR A XML ---
+        std::unique_ptr<juce::XmlElement> toXml() const
+        {
+            auto xml = std::make_unique<juce::XmlElement>("LINUX_PLUGIN_MAKER_PROJECT");
+            xml->setAttribute("name", pluginName);
+            xml->setAttribute("manufacturer", manufacturer);
+            xml->setAttribute("uri", pluginURI);
+            xml->setAttribute("algorithm", (int)currentAlgorithm);
+
+            auto compsXml = new juce::XmlElement("COMPONENTS");
+            for (const auto& comp : components) {
+                auto cXml = new juce::XmlElement("COMPONENT");
+                cXml->setAttribute("index", comp.index);
+                cXml->setAttribute("type", (int)comp.type);
+                cXml->setAttribute("name", comp.name);
+                cXml->setAttribute("symbol", comp.symbol);
+                cXml->setAttribute("min", comp.min);
+                cXml->setAttribute("max", comp.max);
+                cXml->setAttribute("def", comp.def);
+                compsXml->addChildElement(cXml);
+            }
+            xml->addChildElement(compsXml); // El padre toma control de la memoria
+            return xml;
+        }
+
+        // --- RU-02: CARGAR DESDE XML ---
+        void fromXml(juce::XmlElement* xml)
+        {
+            if (xml == nullptr || xml->getTagName() != "LINUX_PLUGIN_MAKER_PROJECT") return;
+
+            pluginName = xml->getStringAttribute("name", "Mi Plugin Nuevo");
+            manufacturer = xml->getStringAttribute("manufacturer", "Mi Nombre");
+            pluginURI = xml->getStringAttribute("uri", "http://miweb.com/plugins/miplugin");
+            currentAlgorithm = (AlgorithmType)xml->getIntAttribute("algorithm", 0);
+
+            components.clear();
+            if (auto* compsXml = xml->getChildByName("COMPONENTS")) {
+                // Iteramos por cada componente guardado
+                for (auto* cXml : compsXml->getChildIterator()) {
+                    Component c;
+                    c.index = cXml->getIntAttribute("index");
+                    c.type = (ComponentType)cXml->getIntAttribute("type");
+                    c.name = cXml->getStringAttribute("name");
+                    c.symbol = cXml->getStringAttribute("symbol");
+                    c.min = cXml->getDoubleAttribute("min", 0.0);
+                    c.max = cXml->getDoubleAttribute("max", 1.0);
+                    c.def = cXml->getDoubleAttribute("def", 0.5);
+                    components.push_back(c);
+                }
+            }
         }
     };
     

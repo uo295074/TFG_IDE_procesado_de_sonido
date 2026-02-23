@@ -70,6 +70,43 @@ public:
     {
         elements.clear(); // Esto borra y destruye los componentes automáticamente
     }
+
+    // --- RU-02: RECONSTRUIR UI DESDE DATOS CARGADOS ---
+    void loadProject(const PluginData::Project& proj)
+    {
+        clearAll(); // Borramos lo actual
+
+        const int itemWidth = 90;
+        const int itemHeight = 110;
+        const int margin = 20;
+        int availableWidth = getWidth() > 0 ? getWidth() : 600; 
+        int itemsPerRow = std::max(1, (availableWidth - margin) / itemWidth);
+
+        for (const auto& c : proj.components)
+        {
+            // Recreamos el elemento visual
+            auto* newComp = new VisualElement(c.type, c.index, c.name);
+            newComp->setSymbol(c.symbol);
+            newComp->setRange(c.min, c.max, c.def);
+            
+            // Le volvemos a conectar el "cable" del clic
+            newComp->onClick = [this, newComp]() {
+                deselectAll();
+                newComp->setSelected(true);
+                if (onSelectionChanged) onSelectionChanged(newComp);
+            };
+
+            // Calculamos su posición en la rejilla
+            int currentCount = elements.size();
+            int row = currentCount / itemsPerRow;
+            int col = currentCount % itemsPerRow;
+            newComp->setTopLeftPosition(margin + (col * itemWidth), margin + (row * itemHeight));
+            
+            addAndMakeVisible(newComp);
+            elements.add(newComp);
+        }
+        repaint();
+    }
     
     // Método para sincronizar con PluginData antes de generar
     void updateProjectData(PluginData::Project& project)

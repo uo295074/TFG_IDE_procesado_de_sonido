@@ -98,8 +98,8 @@ juce::PopupMenu MainComponent::getMenuForIndex(int topLevelMenuIndex, const juce
     {
         menu.addItem(FileNew, "Nuevo Proyecto");
         menu.addSeparator();
-        menu.addItem(FileLoad, "Cargar Proyecto...", false); // Desactivado por ahora
-        menu.addItem(FileSave, "Guardar Proyecto...", false); // Desactivado por ahora
+        menu.addItem(FileLoad, "Cargar Proyecto..."); 
+        menu.addItem(FileSave, "Guardar Proyecto..."); 
         menu.addSeparator();
         menu.addItem(FileExit, "Salir");
     }
@@ -122,6 +122,53 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex)
 {
     switch (menuItemID)
     {
+        case FileSave:
+            // 1. Asegurarnos de tener los datos
+            canvas.updateProjectData(project); 
+            
+            // 2. Abrir ventana
+            fileChooser = std::make_unique<juce::FileChooser>("Guardar Proyecto", 
+                            juce::File::getSpecialLocation(juce::File::userDocumentsDirectory), "*.xml");
+            
+            fileChooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles, 
+                [this](const juce::FileChooser& fc) {
+                    juce::File file = fc.getResult();
+                    if (file != juce::File{}) { 
+                        
+                        // --- ESTE ES EL ARREGLO ---
+                        // Si el usuario no escribió ".xml", se lo ponemos nosotros a la fuerza
+                        if (!file.hasFileExtension("xml"))
+                            file = file.withFileExtension("xml");
+                        // --------------------------
+
+                        if (auto xml = project.toXml())
+                            xml->writeTo(file); 
+                    }
+                });
+            break;
+
+        case FileLoad:
+            // 1. Abrir ventana de carga
+            fileChooser = std::make_unique<juce::FileChooser>("Cargar Proyecto", 
+                            juce::File::getSpecialLocation(juce::File::userDocumentsDirectory), "*.xml");
+            
+            fileChooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, 
+                [this](const juce::FileChooser& fc) {
+                    juce::File file = fc.getResult();
+                    if (file != juce::File{}) {
+                        juce::XmlDocument xmlDoc(file);
+                        if (auto xml = xmlDoc.getDocumentElement()) {
+                            // 2. Extraer los datos del XML al Cerebro
+                            project.fromXml(xml.get());
+                            // 3. Redibujar la interfaz
+                            canvas.loadProject(project); 
+                            // 4. Actualizar el panel derecho
+                            propertiesPanel.inspectProject(&project); 
+                        }
+                    }
+                });
+            break;
+
         case FileExit: 
             juce::JUCEApplication::getInstance()->systemRequestedQuit(); 
             break;
