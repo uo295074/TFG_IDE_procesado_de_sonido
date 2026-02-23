@@ -1,7 +1,7 @@
 /*
   ==============================================================================
     Source/Core/PropertiesPanel.h
-    Panel inteligente: Muestra propiedades del Componente O del Proyecto.
+    Actualizado con Selector de Algoritmo (RU-04)
   ==============================================================================
 */
 #pragma once
@@ -10,49 +10,58 @@
 #include "PluginData.h"
 
 class PropertiesPanel : public juce::Component, 
-                        public juce::TextEditor::Listener
+                        public juce::TextEditor::Listener,
+                        public juce::ComboBox::Listener // Escuchamos cambios del combo
 {
 public:
     std::function<void()> onDataChanged;
 
     PropertiesPanel()
     {
-        // Título principal
         titleLabel.setFont(juce::Font(16.0f, juce::Font::bold));
         titleLabel.setJustificationType(juce::Justification::centred);
         addAndMakeVisible(titleLabel);
 
-        // --- SECCIÓN A: PROPIEDADES DE COMPONENTE (Slider/Switch) ---
+        // --- SECCIÓN COMPONENTE ---
         addCompField(compNameLabel, compNameEditor, "Nombre:");
         addCompField(compIDLabel, compIDEditor, "ID (Symbol):");
         addCompField(minLabel, minEditor, "Mínimo:");
         addCompField(maxLabel, maxEditor, "Máximo:");
         addCompField(defLabel, defEditor, "Defecto:");
 
-        // --- SECCIÓN B: PROPIEDADES DE PROYECTO (Globales) ---
+        // --- SECCIÓN PROYECTO ---
         addProjField(projNameLabel, projNameEditor, "Nombre Plugin:");
         addProjField(projManufLabel, projManufEditor, "Fabricante:");
         addProjField(projURILabel, projURIEditor, "URI Único:");
+        
+        // --- NUEVO: SELECTOR DE ALGORITMO ---
+        algoLabel.setText("Algoritmo DSP:", juce::dontSendNotification);
+        addAndMakeVisible(algoLabel);
+        
+        addAndMakeVisible(algoCombo);
+        // Añadimos las opciones basándonos en el Enum
+        algoCombo.addItem(PluginData::getAlgorithmName(PluginData::AlgorithmType::Gain), 1);
+        algoCombo.addItem(PluginData::getAlgorithmName(PluginData::AlgorithmType::Distortion), 2);
+        algoCombo.addItem(PluginData::getAlgorithmName(PluginData::AlgorithmType::Tremolo), 3);
+        
+        algoCombo.addListener(this); // Para detectar cambios
     }
 
-    // MODO 1: Editar un Slider/Switch
     void inspectElement(VisualElement* element)
     {
         currentElement = element;
-        currentProject = nullptr; // Dejamos de editar el proyecto
+        currentProject = nullptr;
         
-        updateVisibility(); // Magia para ocultar/mostrar campos
+        updateVisibility();
 
         if (element)
         {
             titleLabel.setText("EDITAR COMPONENTE", juce::dontSendNotification);
-            
             compNameEditor.setText(element->getName());
             compIDEditor.setText(element->getSymbol());
 
             bool isSlider = (element->getType() == PluginData::ComponentType::Slider);
             
-            // Solo mostramos números si es slider
             minEditor.setVisible(isSlider); minLabel.setVisible(isSlider);
             maxEditor.setVisible(isSlider); maxLabel.setVisible(isSlider);
             defEditor.setVisible(isSlider); defLabel.setVisible(isSlider);
@@ -65,11 +74,10 @@ public:
         }
     }
 
-    // MODO 2: Editar Datos del Proyecto (RU-01)
     void inspectProject(PluginData::Project* project)
     {
         currentProject = project;
-        currentElement = nullptr; // Dejamos de editar componentes
+        currentElement = nullptr; 
 
         updateVisibility();
 
@@ -79,6 +87,9 @@ public:
             projNameEditor.setText(project->pluginName);
             projManufEditor.setText(project->manufacturer);
             projURIEditor.setText(project->pluginURI);
+            
+            // Seleccionar la opción correcta en el combo (Enum + 1 porque los combos empiezan en 1)
+            algoCombo.setSelectedId((int)project->currentAlgorithm + 1, juce::dontSendNotification);
         }
     }
 
@@ -94,13 +105,12 @@ public:
         {
             if (e.isVisible()) {
                 auto row = area.removeFromTop(h);
-                l.setBounds(row.removeFromLeft(90)); // Etiqueta
-                e.setBounds(row);                    // Editor
+                l.setBounds(row.removeFromLeft(90)); 
+                e.setBounds(row);                    
                 area.removeFromTop(gap);
             }
         };
 
-        // Maquetar Componentes
         layoutField(compNameLabel, compNameEditor);
         layoutField(compIDLabel, compIDEditor);
         area.removeFromTop(5); 
@@ -108,15 +118,30 @@ public:
         layoutField(maxLabel, maxEditor);
         layoutField(defLabel, defEditor);
 
-        // Maquetar Proyecto
         layoutField(projNameLabel, projNameEditor);
         layoutField(projManufLabel, projManufEditor);
         layoutField(projURILabel, projURIEditor);
+        
+        // Layout del Combo
+        if (algoCombo.isVisible()) {
+            layoutField(algoLabel, algoCombo);
+            
+            // Nota informativa (opcional)
+            if (currentProject) {
+                juce::String desc = "";
+                if (algoCombo.getSelectedId() == 2) desc = "Usa Slider 1 como 'Drive'";
+                else if (algoCombo.getSelectedId() == 3) desc = "Usa Slider 1: Freq, Slider 2: Depth";
+                
+                // Podríamos pintar esta descripción más adelante
+            }
+        }
     }
 
-    // Guardar cambios al pulsar enter o perder foco
     void textEditorFocusLost(juce::TextEditor&) override { applyChanges(); }
     void textEditorReturnKeyPressed(juce::TextEditor&) override { applyChanges(); }
+    
+    // Callback del ComboBox
+    void comboBoxChanged(juce::ComboBox*) override { applyChanges(); }
 
 private:
     VisualElement* currentElement = nullptr;
@@ -131,6 +156,10 @@ private:
     // Campos Proyecto
     juce::Label projNameLabel, projManufLabel, projURILabel;
     juce::TextEditor projNameEditor, projManufEditor, projURIEditor;
+    
+    // Nuevo Campo Algoritmo
+    juce::Label algoLabel;
+    juce::ComboBox algoCombo;
 
     void addCompField(juce::Label& l, juce::TextEditor& e, const juce::String& t) {
         l.setText(t, juce::dontSendNotification); addAndMakeVisible(l);
@@ -146,22 +175,21 @@ private:
         bool showComp = (currentElement != nullptr);
         bool showProj = (currentProject != nullptr);
 
-        // Grupo Componente
         compNameLabel.setVisible(showComp); compNameEditor.setVisible(showComp);
         compIDLabel.setVisible(showComp); compIDEditor.setVisible(showComp);
-        // (Los numéricos se gestionan dentro de inspectElement porque dependen de si es Slider o Switch)
         if (!showComp) {
             minLabel.setVisible(false); minEditor.setVisible(false);
             maxLabel.setVisible(false); maxEditor.setVisible(false);
             defLabel.setVisible(false); defEditor.setVisible(false);
         }
 
-        // Grupo Proyecto
         projNameLabel.setVisible(showProj); projNameEditor.setVisible(showProj);
         projManufLabel.setVisible(showProj); projManufEditor.setVisible(showProj);
         projURILabel.setVisible(showProj); projURIEditor.setVisible(showProj);
+        
+        algoLabel.setVisible(showProj); algoCombo.setVisible(showProj);
 
-        resized(); // Recalcular layout
+        resized(); 
     }
 
     void applyChanges()
@@ -184,6 +212,10 @@ private:
             currentProject->pluginName = projNameEditor.getText();
             currentProject->manufacturer = projManufEditor.getText();
             currentProject->pluginURI = projURIEditor.getText();
+            
+            // Guardar selección del combo
+            int id = algoCombo.getSelectedId();
+            if (id > 0) currentProject->currentAlgorithm = (PluginData::AlgorithmType)(id - 1);
         }
     }
 };

@@ -9,6 +9,15 @@
 
 namespace PluginData
 {
+    // 1. DEFINIMOS LOS TIPOS DE EFECTO DISPONIBLES
+    enum class AlgorithmType 
+    { 
+        Gain,       // Multiplicación simple
+        Distortion, // Saturación (tanh)
+        Tremolo     // Modulación de amplitud (LFO)
+    };
+
+    // (Esto sigue igual)
     enum class ComponentType { Slider, Toggle };
 
     struct Component
@@ -24,25 +33,32 @@ namespace PluginData
 
     struct Project
     {
-        // --- NUEVOS DATOS GLOBALES (RU-01) ---
         juce::String pluginName = "Mi Plugin Nuevo";
         juce::String manufacturer = "Mi Nombre";
         juce::String pluginURI = "http://miweb.com/plugins/miplugin";
         
-        // La lista de componentes que ya tenías
+        // 2. AÑADIMOS LA VARIABLE DEL ALGORITMO (Por defecto Gain)
+        AlgorithmType currentAlgorithm = AlgorithmType::Gain; 
+        
         std::vector<Component> components;
 
-        // Métodos auxiliares para gestión rápida
+        // Ayudante para añadir sliders rápido
         void addSlider(const juce::String& n, float mn, float mx, float df) {
             Component c; c.type = ComponentType::Slider; c.name = n; 
             c.min = mn; c.max = mx; c.def = df; c.index = components.size();
             components.push_back(c);
         }
-        
-        void addToggle(const juce::String& n) {
-            Component c; c.type = ComponentType::Toggle; c.name = n; 
-            c.index = components.size();
-            components.push_back(c);
-        }
     };
+    
+    // Función auxiliar para convertir el enum a texto (útil para la UI)
+    static juce::String getAlgorithmName(AlgorithmType type)
+    {
+        switch (type)
+        {
+            case AlgorithmType::Gain:       return "Control de Ganancia (Básico)";
+            case AlgorithmType::Distortion: return "Distorsión (Saturación)";
+            case AlgorithmType::Tremolo:    return "Trémolo (Modulación AM)";
+            default: return "Desconocido";
+        }
+    }
 }
