@@ -68,14 +68,57 @@ MainComponent::MainComponent()
     generateBtn.setColour(juce::TextButton::buttonColourId, juce::Colours::orange);
     generateBtn.setColour(juce::TextButton::textColourOffId, juce::Colours::black);
     
-    generateBtn.onClick = [this] {
+    generateBtn.onClick = [this]
+    {
         canvas.updateProjectData(project);
-        if (project.components.empty()) {
-            juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon, "Vacío", "Añade algo primero.");
+
+        if (project.components.empty())
+        {
+            juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon, 
+                "Proyecto Vacío", "Añade algún componente antes de generar.");
             return;
         }
+
+        // 1. GENERAMOS EL CÓDIGO FUENTE (C++) al instante
         generator.createPluginFiles(project);
-        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon, "Éxito", "Generado en Escritorio.");
+        
+        // 2. CAMBIAMOS LA INTERFAZ (Para avisar al usuario)
+        generateBtn.setButtonText("Compilando de fondo... ¡Espera!");
+        generateBtn.setEnabled(false); // Desactivamos el botón para que no hagan doble clic
+        
+        // 3. MAGIA MULTIHILO: Lanzamos la compilación en segundo plano
+        // Usamos std::thread para no bloquear la interfaz gráfica
+        std::thread([this]() 
+        {
+            // Este código lo ejecuta un trabajador invisible de fondo
+            juce::String result = generator.compileAndInstallPlugin(project);
+            
+            // 4. VOLVEMOS AL HILO PRINCIPAL
+            // Cuando termina, usamos callAsync para decirle al trabajador principal que dibuje el resultado
+            juce::MessageManager::callAsync([this, result]()
+            {
+                // Restauramos el botón a su estado normal
+                generateBtn.setButtonText("GENERAR PROYECTO LV2");
+                generateBtn.setEnabled(true);
+
+                // Mostramos el aviso final
+                if (result.startsWith("OK:"))
+                {
+                    juce::String folderName = result.substring(3);
+                    juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon, 
+                        "¡Éxito Total!", 
+                        "Plugin generado, compilado e instalado automáticamente.\n\n"
+                        "Carpeta de instalación: ~/.lv2/" + folderName + ".lv2\n\n"
+                        "¡Ya puedes abrir Reaper y probarlo!");
+                }
+                else
+                {
+                    juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon, 
+                        "Error al Compilar", result);
+                }
+            });
+
+        }).detach(); // detach() deja que el hilo viva de forma independiente hasta acabar
     };
 
     setSize(950, 600);

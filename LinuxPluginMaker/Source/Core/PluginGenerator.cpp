@@ -141,9 +141,14 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
 
     // 4. PREPARAR ARCHIVOS
     juce::String cmakeContent = Templates::cmakeFile;
+    
+    // Limpiamos el URI de saltos de línea invisibles por si acaso
+    juce::String cleanURI = project.pluginURI.replace("\r", "").replace("\n", "").trim();
+    juce::String cleanName = project.pluginName.replace("\r", "").replace("\n", "").trim();
+
     cmakeContent = cmakeContent.replace("{{TTL_PORTS}}", ttlPorts);
-    cmakeContent = cmakeContent.replace("{{PLUGIN_NAME}}", project.pluginName); 
-    cmakeContent = cmakeContent.replace("{{PLUGIN_URI}}", project.pluginURI);   
+    cmakeContent = cmakeContent.replace("{{PLUGIN_NAME}}", cleanName); 
+    cmakeContent = cmakeContent.replace("{{PLUGIN_URI}}", cleanURI);  
     
     juce::String editorContent = Templates::editorCpp;
     editorContent = editorContent.replace("{{NUM_PARAMS}}", juce::String(project.components.size()));
@@ -166,4 +171,40 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
     sourceDir.getChildFile("PluginEditor.cpp").replaceWithText(editorContent);
 
     juce::Logger::writeToLog("Archivos generados correctamente en: " + desktopDir.getFullPathName());
+}
+
+// ==============================================================================
+// RU-03: AUTOMATIZACIÓN DE COMPILACIÓN E INSTALACIÓN
+// ==============================================================================
+juce::String PluginGenerator::compileAndInstallPlugin(const PluginData::Project& project)
+{
+    // 1. Nombre hiper-seguro (solo letras, sin espacios ni símbolos raros)
+    juce::String safeName = "";
+    for (auto c : project.pluginName) {
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+            safeName += c;
+        }
+    }
+    if (safeName.isEmpty()) safeName = "MiEfectoDSP";
+
+    // 2. Los comandos justos y necesarios
+    juce::String bashCommands = 
+        "cd \"" + desktopDir.getFullPathName() + "\" && "
+        "mkdir -p build && "
+        "cd build && "
+        "cmake .. && "
+        "cmake --build . -j4 && "
+        "rm -rf ~/.lv2/" + safeName + ".lv2 && "
+        "mkdir -p ~/.lv2/" + safeName + ".lv2 && "
+        "cp MiEfectoDSP.so manifest.ttl plugin.ttl ~/.lv2/" + safeName + ".lv2/";
+
+    // 3. Ejecución directa del sistema (bloqueará la UI 3 segundos, pero NO se colgará)
+    int result = system(bashCommands.toRawUTF8());
+
+    // Si system() devuelve 0, significa que todo salió perfecto
+    if (result == 0) {
+        return "OK:" + safeName;
+    } else {
+        return "ERROR: Revisa la terminal donde lanzaste el IDE para ver qué falló.";
+    }
 }
