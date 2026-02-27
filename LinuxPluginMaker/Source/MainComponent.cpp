@@ -44,6 +44,13 @@ MainComponent::MainComponent()
         counter++;
     };
 
+    addAndMakeVisible(addKnobBtn);
+    addKnobBtn.onClick = [this] {
+        static int counter = 1;
+        canvas.addElement(PluginData::ComponentType::Knob, counter, "Knob " + juce::String(counter));
+        counter++;
+    };
+
     addAndMakeVisible(clearBtn);
     clearBtn.setColour(juce::TextButton::buttonColourId, juce::Colours::darkred);
     clearBtn.onClick = [this] {
@@ -265,6 +272,8 @@ void MainComponent::resized()
     addSliderBtn.setBounds(sidebar.removeFromTop(40));
     sidebar.removeFromTop(10);
     addToggleBtn.setBounds(sidebar.removeFromTop(40));
+    sidebar.removeFromTop(10);
+    addKnobBtn.setBounds(sidebar.removeFromTop(40));
     clearBtn.setBounds(sidebar.removeFromBottom(40));
 
     // 3. COLUMNA DERECHA

@@ -18,7 +18,7 @@ namespace PluginData
     };
 
     // (Esto sigue igual)
-    enum class ComponentType { Slider, Toggle };
+    enum class ComponentType { Slider, Toggle, Knob };
 
     struct Component
     {
@@ -42,6 +42,12 @@ namespace PluginData
 
         void addSlider(const juce::String& n, float mn, float mx, float df) {
             Component c; c.type = ComponentType::Slider; c.name = n; 
+            c.min = mn; c.max = mx; c.def = df; c.index = components.size();
+            components.push_back(c);
+        }
+
+        void addKnob(const juce::String& n, float mn, float mx, float df) {
+            Component c; c.type = ComponentType::Knob; c.name = n; 
             c.min = mn; c.max = mx; c.def = df; c.index = components.size();
             components.push_back(c);
         }

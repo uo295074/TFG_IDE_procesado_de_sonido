@@ -109,7 +109,7 @@ public:
     }
     
     // Método para sincronizar con PluginData antes de generar
-    void updateProjectData(PluginData::Project& project)
+   void updateProjectData(PluginData::Project& project)
     {
         project.components.clear();
         
@@ -123,13 +123,15 @@ public:
             comp.name = el->getName();
             comp.symbol = el->getSymbol();
             
-            if (comp.type == PluginData::ComponentType::Slider)
+            // --- CAMBIO AQUÍ: El Knob también usa min, max y def ---
+            if (comp.type == PluginData::ComponentType::Slider || 
+                comp.type == PluginData::ComponentType::Knob)
             {
                 comp.min = el->getMin();
                 comp.max = el->getMax();
                 comp.def = el->getDef();
             }
-            else
+            else // Para el Toggle (Switch)
             {
                 comp.min = 0; comp.max = 1; comp.def = 0;
             }

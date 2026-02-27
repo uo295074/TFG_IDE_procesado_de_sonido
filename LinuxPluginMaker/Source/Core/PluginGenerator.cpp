@@ -28,15 +28,12 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
     {
         ttlPorts += ",\n             [ "; 
         
-        if (comp.type == PluginData::ComponentType::Slider)
+        if (comp.type == PluginData::ComponentType::Slider || comp.type == PluginData::ComponentType::Knob)
         {
             ttlPorts += "a lv2:InputPort, lv2:ControlPort ; ";
             ttlPorts += "lv2:index " + juce::String(portIndex) + " ; "; 
-            
-            // --- AQUÍ ESTÁ EL ARREGLO DE LAS COMILLAS (\\\" en vez de \") ---
             ttlPorts += "lv2:symbol \\\"" + comp.symbol + "\\\" ; "; 
             ttlPorts += "lv2:name \\\"" + comp.name + "\\\" ; ";
-            
             ttlPorts += "lv2:default " + juce::String(comp.def) + " ; ";
             ttlPorts += "lv2:minimum " + juce::String(comp.min) + " ; ";
             ttlPorts += "lv2:maximum " + juce::String(comp.max); 

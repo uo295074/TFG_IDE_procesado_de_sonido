@@ -34,11 +34,18 @@ public:
         }
 
         // --- CONSTRUCCIÓN DE LA INTERFAZ ---
-        // 1. CREAR SLIDER
-        if (type == PluginData::ComponentType::Slider)
+        // 1. CREAR SLIDER O KNOB
+        if (type == PluginData::ComponentType::Slider || type == PluginData::ComponentType::Knob)
         {
             slider.reset(new juce::Slider());
-            slider->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+            
+            // Aquí le damos el traje correcto a cada uno
+            if (type == PluginData::ComponentType::Slider) {
+                slider->setSliderStyle(juce::Slider::LinearVertical); // Barra vertical
+            } else {
+                slider->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag); // Ruleta
+            }
+
             slider->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
             
             // EL TRUCO: Desactivar interacción del hijo para permitir arrastre del padre
