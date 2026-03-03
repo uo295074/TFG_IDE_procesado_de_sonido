@@ -1,7 +1,7 @@
 /*
   ==============================================================================
     Source/Core/PropertiesPanel.h
-    Actualizado con Selector de Algoritmo (RU-04)
+    Actualizado con Selector de Algoritmo y Canales de Audio
   ==============================================================================
 */
 #pragma once
@@ -11,7 +11,7 @@
 
 class PropertiesPanel : public juce::Component, 
                         public juce::TextEditor::Listener,
-                        public juce::ComboBox::Listener // Escuchamos cambios del combo
+                        public juce::ComboBox::Listener 
 {
 public:
     std::function<void()> onDataChanged;
@@ -34,17 +34,31 @@ public:
         addProjField(projManufLabel, projManufEditor, "Fabricante:");
         addProjField(projURILabel, projURIEditor, "URI Único:");
         
-        // --- NUEVO: SELECTOR DE ALGORITMO ---
+        // --- NUEVO: SELECTORES DE CANALES DE AUDIO ---
+        inputsLabel.setText("Entradas:", juce::dontSendNotification);
+        addAndMakeVisible(inputsLabel);
+        addAndMakeVisible(inputsCombo);
+        inputsCombo.addItem("1 (Mono)", 1);
+        inputsCombo.addItem("2 (Estéreo)", 2);
+        inputsCombo.addListener(this);
+
+        outputsLabel.setText("Salidas:", juce::dontSendNotification);
+        addAndMakeVisible(outputsLabel);
+        addAndMakeVisible(outputsCombo);
+        outputsCombo.addItem("1 (Mono)", 1);
+        outputsCombo.addItem("2 (Estéreo)", 2);
+        outputsCombo.addListener(this);
+
+        // --- SELECTOR DE ALGORITMO ---
         algoLabel.setText("Algoritmo DSP:", juce::dontSendNotification);
         addAndMakeVisible(algoLabel);
         
         addAndMakeVisible(algoCombo);
-        // Añadimos las opciones basándonos en el Enum
         algoCombo.addItem(PluginData::getAlgorithmName(PluginData::AlgorithmType::Gain), 1);
         algoCombo.addItem(PluginData::getAlgorithmName(PluginData::AlgorithmType::Distortion), 2);
         algoCombo.addItem(PluginData::getAlgorithmName(PluginData::AlgorithmType::Tremolo), 3);
         
-        algoCombo.addListener(this); // Para detectar cambios
+        algoCombo.addListener(this); 
     }
 
     void inspectElement(VisualElement* element)
@@ -60,7 +74,8 @@ public:
             compNameEditor.setText(element->getName());
             compIDEditor.setText(element->getSymbol());
 
-            bool isSlider = (element->getType() == PluginData::ComponentType::Slider);
+            bool isSlider = (element->getType() == PluginData::ComponentType::Slider || 
+                             element->getType() == PluginData::ComponentType::Knob);
             
             minEditor.setVisible(isSlider); minLabel.setVisible(isSlider);
             maxEditor.setVisible(isSlider); maxLabel.setVisible(isSlider);
@@ -88,7 +103,10 @@ public:
             projManufEditor.setText(project->manufacturer);
             projURIEditor.setText(project->pluginURI);
             
-            // Seleccionar la opción correcta en el combo (Enum + 1 porque los combos empiezan en 1)
+            // --- NUEVO: Cargar valores en los menús desplegables ---
+            inputsCombo.setSelectedId(project->numInputs, juce::dontSendNotification);
+            outputsCombo.setSelectedId(project->numOutputs, juce::dontSendNotification);
+
             algoCombo.setSelectedId((int)project->currentAlgorithm + 1, juce::dontSendNotification);
         }
     }
@@ -122,25 +140,17 @@ public:
         layoutField(projManufLabel, projManufEditor);
         layoutField(projURILabel, projURIEditor);
         
-        // Layout del Combo
+        // --- NUEVO: Layout de los desplegables de Proyecto ---
         if (algoCombo.isVisible()) {
+            layoutField(inputsLabel, inputsCombo);
+            layoutField(outputsLabel, outputsCombo);
             layoutField(algoLabel, algoCombo);
-            
-            // Nota informativa (opcional)
-            if (currentProject) {
-                juce::String desc = "";
-                if (algoCombo.getSelectedId() == 2) desc = "Usa Slider 1 como 'Drive'";
-                else if (algoCombo.getSelectedId() == 3) desc = "Usa Slider 1: Freq, Slider 2: Depth";
-                
-                // Podríamos pintar esta descripción más adelante
-            }
         }
     }
 
     void textEditorFocusLost(juce::TextEditor&) override { applyChanges(); }
     void textEditorReturnKeyPressed(juce::TextEditor&) override { applyChanges(); }
     
-    // Callback del ComboBox
     void comboBoxChanged(juce::ComboBox*) override { applyChanges(); }
 
 private:
@@ -149,15 +159,16 @@ private:
 
     juce::Label titleLabel;
 
-    // Campos Componente
     juce::Label compNameLabel, compIDLabel, minLabel, maxLabel, defLabel;
     juce::TextEditor compNameEditor, compIDEditor, minEditor, maxEditor, defEditor;
 
-    // Campos Proyecto
     juce::Label projNameLabel, projManufLabel, projURILabel;
     juce::TextEditor projNameEditor, projManufEditor, projURIEditor;
     
-    // Nuevo Campo Algoritmo
+    // --- NUEVO: Variables para los combos de audio ---
+    juce::Label inputsLabel, outputsLabel;
+    juce::ComboBox inputsCombo, outputsCombo;
+
     juce::Label algoLabel;
     juce::ComboBox algoCombo;
 
@@ -187,6 +198,10 @@ private:
         projManufLabel.setVisible(showProj); projManufEditor.setVisible(showProj);
         projURILabel.setVisible(showProj); projURIEditor.setVisible(showProj);
         
+        // --- NUEVO: Mostrar/Ocultar combos de audio ---
+        inputsLabel.setVisible(showProj); inputsCombo.setVisible(showProj);
+        outputsLabel.setVisible(showProj); outputsCombo.setVisible(showProj);
+
         algoLabel.setVisible(showProj); algoCombo.setVisible(showProj);
 
         resized(); 
@@ -198,7 +213,8 @@ private:
         {
             currentElement->setName(compNameEditor.getText());
             currentElement->setSymbol(compIDEditor.getText());
-            if (currentElement->getType() == PluginData::ComponentType::Slider) {
+            if (currentElement->getType() == PluginData::ComponentType::Slider || 
+                currentElement->getType() == PluginData::ComponentType::Knob) {
                 currentElement->setRange(
                     minEditor.getText().getFloatValue(),
                     maxEditor.getText().getFloatValue(),
@@ -213,7 +229,13 @@ private:
             currentProject->manufacturer = projManufEditor.getText();
             currentProject->pluginURI = projURIEditor.getText();
             
-            // Guardar selección del combo
+            // --- NUEVO: Guardar canales en el proyecto ---
+            int inId = inputsCombo.getSelectedId();
+            if (inId > 0) currentProject->numInputs = inId;
+
+            int outId = outputsCombo.getSelectedId();
+            if (outId > 0) currentProject->numOutputs = outId;
+
             int id = algoCombo.getSelectedId();
             if (id > 0) currentProject->currentAlgorithm = (PluginData::AlgorithmType)(id - 1);
         }

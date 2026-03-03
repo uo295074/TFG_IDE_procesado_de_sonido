@@ -1,7 +1,7 @@
 /*
   ==============================================================================
     Source/Core/PluginGenerator.cpp
-    (CORREGIDO: Eliminados los asteriscos '*' sobrantes en params)
+    Actualizado para inyectar configuración de Canales de Audio (Mono/Estéreo)
   ==============================================================================
 */
 
@@ -21,8 +21,29 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
     juce::File sourceDir = desktopDir.getChildFile("Source");
     if (!sourceDir.exists()) sourceDir.createDirectory();
 
+    // --- 1. GENERAR PUERTOS DE AUDIO (DINÁMICO MONO/ESTÉREO) ---
+    juce::String audioPortsTtl = "";
+    int portIndex = 0;
+    
+    // Entradas
+    for (int i = 0; i < project.numInputs; ++i) {
+        audioPortsTtl += "[ a lv2:InputPort, lv2:AudioPort ; lv2:index " + juce::String(portIndex) + 
+                         " ; lv2:symbol \\\"in_" + juce::String(i) + "\\\" ; lv2:name \\\"In " + juce::String(i+1) + "\\\" ]";
+        portIndex++;
+        // Ponemos coma si no es el último puerto en total
+        if (i < project.numInputs - 1 || project.numOutputs > 0) audioPortsTtl += ",\n             ";
+    }
+    
+    // Salidas
+    for (int i = 0; i < project.numOutputs; ++i) {
+        audioPortsTtl += "[ a lv2:OutputPort, lv2:AudioPort ; lv2:index " + juce::String(portIndex) + 
+                         " ; lv2:symbol \\\"out_" + juce::String(i) + "\\\" ; lv2:name \\\"Out " + juce::String(i+1) + "\\\" ]";
+        portIndex++;
+        if (i < project.numOutputs - 1) audioPortsTtl += ",\n             ";
+    }
+
+    // --- 2. GENERAR PUERTOS DE PARÁMETROS ---
     juce::String ttlPorts = "";
-    int portIndex = 4; 
     
     for (const auto& comp : project.components)
     {
@@ -41,9 +62,7 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
         else if (comp.type == PluginData::ComponentType::Toggle)
         {
             ttlPorts += "a lv2:InputPort, lv2:ControlPort ; ";
-            // --- ESTA ES LA LÍNEA QUE FALTABA (La propiedad correcta) ---
             ttlPorts += "lv2:portProperty lv2:toggled ; "; 
-            
             ttlPorts += "lv2:index " + juce::String(portIndex) + " ; "; 
             ttlPorts += "lv2:symbol \\\"" + comp.symbol + "\\\" ; ";
             ttlPorts += "lv2:name \\\"" + comp.name + "\\\" ; ";
@@ -55,20 +74,17 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
         portIndex++; 
     }
 
-    // 3. GENERAR CÓDIGO DSP MATEMÁTICO (CORREGIDO SIN ASTERISCOS)
+    // 3. GENERAR CÓDIGO DSP MATEMÁTICO
     juce::String dspCode = "";
 
     switch (project.currentAlgorithm)
     {
         case PluginData::AlgorithmType::Distortion:
-            // Algoritmo de Distorsión
             dspCode = R"(
                 // --- CÓDIGO GENERADO: DISTORSIÓN ---
                 float drive = 1.0f;
-                // CORRECCIÓN: Quitamos el '*' porque params[0] ya es un float
                 if (params.size() > 0) drive = params[0]; 
 
-                // Evitar silencio si el drive es 0, sumamos 1
                 drive = 1.0f + (drive * 10.0f); 
 
                 for (int channel = 0; channel < totalNumInputChannels; ++channel)
@@ -83,13 +99,11 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
             break;
 
         case PluginData::AlgorithmType::Tremolo:
-            // Algoritmo de Trémolo
             dspCode = R"(
                 // --- CÓDIGO GENERADO: TRÉMOLO ---
                 float freq = 1.0f; 
                 float depth = 0.5f;
                 
-                // CORRECCIÓN: Quitamos los '*'
                 if (params.size() > 0) freq = params[0];
                 if (params.size() > 1) depth = params[1];
 
@@ -117,11 +131,9 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
 
         case PluginData::AlgorithmType::Gain:
         default:
-            // Algoritmo Ganancia
             dspCode = R"(
                 // --- CÓDIGO GENERADO: GANANCIA ---
                 float gain = 1.0f;
-                // CORRECCIÓN: Quitamos el '*'
                 if (params.size() > 0) gain = params[0]; 
 
                 for (int channel = 0; channel < totalNumInputChannels; ++channel)
@@ -139,26 +151,25 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
     // 4. PREPARAR ARCHIVOS
     juce::String cmakeContent = Templates::cmakeFile;
     
-    // Limpiamos el URI de saltos de línea invisibles por si acaso
     juce::String cleanURI = project.pluginURI.replace("\r", "").replace("\n", "").trim();
     juce::String cleanName = project.pluginName.replace("\r", "").replace("\n", "").trim();
 
+    cmakeContent = cmakeContent.replace("{{AUDIO_PORTS_TTL}}", audioPortsTtl);
     cmakeContent = cmakeContent.replace("{{TTL_PORTS}}", ttlPorts);
     cmakeContent = cmakeContent.replace("{{PLUGIN_NAME}}", cleanName); 
     cmakeContent = cmakeContent.replace("{{PLUGIN_URI}}", cleanURI);  
     
     juce::String editorContent = Templates::editorCpp;
+    editorContent = editorContent.replace("{{NUM_INPUTS}}", juce::String(project.numInputs));
+    editorContent = editorContent.replace("{{NUM_OUTPUTS}}", juce::String(project.numOutputs));
     editorContent = editorContent.replace("{{NUM_PARAMS}}", juce::String(project.components.size()));
 
     juce::String processorContent = Templates::processorCpp;
+    
     if (processorContent.contains("{{DSP_CODE}}"))
-    {
         processorContent = processorContent.replace("{{DSP_CODE}}", dspCode);
-    }
     else
-    {
         processorContent = processorContent.replace("// INSERT_DSP_HERE", dspCode);
-    }
 
     // 5. ESCRIBIR EN DISCO
     desktopDir.getChildFile("CMakeLists.txt").replaceWithText(cmakeContent);
@@ -171,11 +182,10 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
 }
 
 // ==============================================================================
-// RU-03: AUTOMATIZACIÓN DE COMPILACIÓN E INSTALACIÓN
+// AUTOMATIZACIÓN DE COMPILACIÓN E INSTALACIÓN
 // ==============================================================================
 juce::String PluginGenerator::compileAndInstallPlugin(const PluginData::Project& project)
 {
-    // 1. Nombre hiper-seguro (solo letras, sin espacios ni símbolos raros)
     juce::String safeName = "";
     for (auto c : project.pluginName) {
         if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
@@ -184,7 +194,6 @@ juce::String PluginGenerator::compileAndInstallPlugin(const PluginData::Project&
     }
     if (safeName.isEmpty()) safeName = "MiEfectoDSP";
 
-    // 2. Los comandos justos y necesarios
     juce::String bashCommands = 
         "cd \"" + desktopDir.getFullPathName() + "\" && "
         "mkdir -p build && "
@@ -195,10 +204,8 @@ juce::String PluginGenerator::compileAndInstallPlugin(const PluginData::Project&
         "mkdir -p ~/.lv2/" + safeName + ".lv2 && "
         "cp MiEfectoDSP.so manifest.ttl plugin.ttl ~/.lv2/" + safeName + ".lv2/";
 
-    // 3. Ejecución directa del sistema (bloqueará la UI 3 segundos, pero NO se colgará)
     int result = system(bashCommands.toRawUTF8());
 
-    // Si system() devuelve 0, significa que todo salió perfecto
     if (result == 0) {
         return "OK:" + safeName;
     } else {

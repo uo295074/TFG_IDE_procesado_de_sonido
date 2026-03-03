@@ -17,7 +17,6 @@ namespace PluginData
         Tremolo     // Modulación de amplitud (LFO)
     };
 
-    // (Esto sigue igual)
     enum class ComponentType { Slider, Toggle, Knob };
 
     struct Component
@@ -38,6 +37,12 @@ namespace PluginData
         juce::String pluginURI = "http://miweb.com/plugins/miplugin";
         
         AlgorithmType currentAlgorithm = AlgorithmType::Gain; 
+
+        // --- NUEVO: Variables para Entradas y Salidas ---
+        int numInputs = 2;  // Por defecto 2 (Estéreo)
+        int numOutputs = 2; // Por defecto 2 (Estéreo)
+        // ------------------------------------------------
+
         std::vector<Component> components;
 
         void addSlider(const juce::String& n, float mn, float mx, float df) {
@@ -60,6 +65,11 @@ namespace PluginData
             xml->setAttribute("manufacturer", manufacturer);
             xml->setAttribute("uri", pluginURI);
             xml->setAttribute("algorithm", (int)currentAlgorithm);
+            
+            // --- NUEVO: Guardar en XML ---
+            xml->setAttribute("numInputs", numInputs);
+            xml->setAttribute("numOutputs", numOutputs);
+            // -----------------------------
 
             auto compsXml = new juce::XmlElement("COMPONENTS");
             for (const auto& comp : components) {
@@ -86,6 +96,11 @@ namespace PluginData
             manufacturer = xml->getStringAttribute("manufacturer", "Mi Nombre");
             pluginURI = xml->getStringAttribute("uri", "http://miweb.com/plugins/miplugin");
             currentAlgorithm = (AlgorithmType)xml->getIntAttribute("algorithm", 0);
+
+            // --- NUEVO: Leer desde XML ---
+            numInputs = xml->getIntAttribute("numInputs", 2);
+            numOutputs = xml->getIntAttribute("numOutputs", 2);
+            // -----------------------------
 
             components.clear();
             if (auto* compsXml = xml->getChildByName("COMPONENTS")) {

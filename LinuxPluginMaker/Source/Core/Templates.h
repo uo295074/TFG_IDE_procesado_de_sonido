@@ -1,7 +1,7 @@
 /*
   ==============================================================================
     Source/Core/Templates.h
-    (Versión CORREGIDA: DSP Dinámico + Sincronización de URI)
+    (Versión ACTUALIZADA: DSP Dinámico + I/O Dinámicos)
   ==============================================================================
 */
 
@@ -28,10 +28,9 @@ public:
     
     // params contiene los valores de todos los sliders en orden
     void process(float* const* inputChannelData, float* const* outputChannelData, 
-                 int numChannels, int numSamples, 
+                 int numInChannels, int numOutChannels, int numSamples, 
                  const std::vector<float>& params);
 
-    // Ayudante para obtener sampleRate dentro del DSP generado
     double getSampleRate() const { return currentSampleRate; }
 
 private:
@@ -41,12 +40,11 @@ private:
 )jv";
 
     // ==============================================================================
-    // 2. DSP CPP: ¡AQUÍ ESTÁ LA MAGIA!
-    // Hemos quitado el código de ganancia fijo y puesto {{DSP_CODE}}
+    // 2. DSP CPP
     // ==============================================================================
     const std::string processorCpp = R"jv(
 #include "PluginProcessor.h"
-#include <cmath> // Necesario para tanh, sin, pi, etc.
+#include <cmath> 
 
 DspEngine::DspEngine() {}
 DspEngine::~DspEngine() {}
@@ -58,22 +56,24 @@ void DspEngine::prepare(double sampleRate, int samplesPerBlock)
 }
 
 void DspEngine::process(float* const* inputChannelData, float* const* outputChannelData, 
-                        int numChannels, int numSamples, 
+                        int numInChannels, int numOutChannels, int numSamples, 
                         const std::vector<float>& params)
 {
-    juce::AudioBuffer<float> buffer(outputChannelData, numChannels, numSamples);
+    juce::AudioBuffer<float> buffer(outputChannelData, numOutChannels, numSamples);
 
-    // 1. Copiar entrada a salida (Boilerplate estándar)
-    if (inputChannelData != outputChannelData)
-    {
-        for (int i = 0; i < numChannels; ++i)
-            buffer.copyFrom(i, 0, inputChannelData[i], numSamples);
-    }
+    // 1. Copiar entrada a salida de forma segura (mezclando si es necesario)
+    int minChannels = std::min(numInChannels, numOutChannels);
+    for (int i = 0; i < minChannels; ++i)
+        buffer.copyFrom(i, 0, inputChannelData[i], numSamples);
+        
+    // Si hay más salidas que entradas (ej: Mono a Estéreo), duplicamos el canal 1
+    if (numOutChannels > numInChannels && numInChannels > 0)
+        for (int i = numInChannels; i < numOutChannels; ++i)
+            buffer.copyFrom(i, 0, inputChannelData[0], numSamples);
 
-    auto totalNumInputChannels = numChannels;
+    int totalNumInputChannels = numOutChannels; // Procesamos sobre las salidas
 
     // 2. INYECCIÓN DE ALGORITMO SELECCIONADO
-    // El generador sustituirá esta etiqueta por el código de Distorsión, Trémolo, etc.
     {{DSP_CODE}}
 }
 )jv";
@@ -86,8 +86,7 @@ void DspEngine::process(float* const* inputChannelData, float* const* outputChan
 )jv";
 
     // ==============================================================================
-    // 4. LV2 WRAPPER
-    // Ahora usa PLUGIN_URI_STRING (definido en CMake) para no fallar nunca
+    // 4. LV2 WRAPPER (¡Ahora es dinámico para Mono/Estéreo!)
     // ==============================================================================
     const std::string editorCpp = R"jv(
 #include <cstdint>
@@ -96,36 +95,29 @@ void DspEngine::process(float* const* inputChannelData, float* const* outputChan
 #include <lv2/core/lv2.h>
 #include "PluginProcessor.h"
 
-#define PORT_AUDIO_IN_L  0
-#define PORT_AUDIO_IN_R  1
-#define PORT_AUDIO_OUT_L 2
-#define PORT_AUDIO_OUT_R 3
-// Los puertos de parámetros empiezan en el 4
-
+#define NUM_INPUTS {{NUM_INPUTS}}
+#define NUM_OUTPUTS {{NUM_OUTPUTS}}
+#define PARAM_START_INDEX (NUM_INPUTS + NUM_OUTPUTS)
 #define NUM_PARAMS {{NUM_PARAMS}} 
 
-// Si por alguna razón CMake no define el URI, usamos uno por defecto para que compile
 #ifndef PLUGIN_URI_STRING
 #define PLUGIN_URI_STRING "http://upm.es/plugins/MiEfectoTFG"
 #endif
 
 struct Lv2Plugin {
-    float* inputL; float* inputR;
-    float* outputL; float* outputR;
-    std::vector<float*> paramPtrs;
-
-    DspEngine* dsp;
     std::vector<float*> inputChans;
     std::vector<float*> outputChans;
+    std::vector<float*> paramPtrs;
+    DspEngine* dsp;
 };
 
 static LV2_Handle instantiate(const LV2_Descriptor*, double rate, const char*, const LV2_Feature* const*) {
     Lv2Plugin* plugin = new Lv2Plugin();
     plugin->dsp = new DspEngine();
     plugin->dsp->prepare(rate, 512);
-    plugin->inputChans.resize(2);
-    plugin->outputChans.resize(2);
     
+    plugin->inputChans.resize(NUM_INPUTS, nullptr);
+    plugin->outputChans.resize(NUM_OUTPUTS, nullptr);
     plugin->paramPtrs.resize(NUM_PARAMS, nullptr);
     
     return (LV2_Handle)plugin;
@@ -134,25 +126,23 @@ static LV2_Handle instantiate(const LV2_Descriptor*, double rate, const char*, c
 static void connect_port(LV2_Handle instance, uint32_t port, void* data) {
     Lv2Plugin* plugin = (Lv2Plugin*)instance;
     
-    switch (port) {
-        case PORT_AUDIO_IN_L:  plugin->inputL = (float*)data; return;
-        case PORT_AUDIO_IN_R:  plugin->inputR = (float*)data; return;
-        case PORT_AUDIO_OUT_L: plugin->outputL = (float*)data; return;
-        case PORT_AUDIO_OUT_R: plugin->outputR = (float*)data; return;
-    }
-
-    int paramIndex = (int)port - 4;
-    if (paramIndex >= 0 && paramIndex < NUM_PARAMS) {
-        plugin->paramPtrs[paramIndex] = (float*)data;
+    // Conectamos dinámicamente sin importar si es 1 o 2 canales
+    if (port < NUM_INPUTS) {
+        plugin->inputChans[port] = (float*)data;
+    } 
+    else if (port < NUM_INPUTS + NUM_OUTPUTS) {
+        plugin->outputChans[port - NUM_INPUTS] = (float*)data;
+    } 
+    else {
+        int paramIndex = (int)port - PARAM_START_INDEX;
+        if (paramIndex >= 0 && paramIndex < NUM_PARAMS) {
+            plugin->paramPtrs[paramIndex] = (float*)data;
+        }
     }
 }
 
 static void run(LV2_Handle instance, uint32_t n_samples) {
     Lv2Plugin* plugin = (Lv2Plugin*)instance;
-    plugin->inputChans[0] = plugin->inputL;
-    plugin->inputChans[1] = plugin->inputR;
-    plugin->outputChans[0] = plugin->outputL;
-    plugin->outputChans[1] = plugin->outputR;
 
     std::vector<float> currentValues(NUM_PARAMS);
     for (int i = 0; i < NUM_PARAMS; ++i) {
@@ -162,7 +152,8 @@ static void run(LV2_Handle instance, uint32_t n_samples) {
             currentValues[i] = 0.0f;
     }
 
-    plugin->dsp->process(plugin->inputChans.data(), plugin->outputChans.data(), 2, (int)n_samples, currentValues);
+    plugin->dsp->process(plugin->inputChans.data(), plugin->outputChans.data(), 
+                         NUM_INPUTS, NUM_OUTPUTS, (int)n_samples, currentValues);
 }
 
 static void cleanup(LV2_Handle instance) {
@@ -175,7 +166,6 @@ static void activate(LV2_Handle) {}
 static void deactivate(LV2_Handle) {}
 static const void* extension_data(const char*) { return NULL; }
 
-// AQUÍ USAMOS LA MACRO QUE VIENE DE CMAKE
 static const LV2_Descriptor descriptor = {
     PLUGIN_URI_STRING,
     instantiate, connect_port, activate, run, deactivate, cleanup, extension_data
@@ -189,8 +179,7 @@ extern "C" {
 )jv";
 
     // ==============================================================================
-    // 5. CMAKE
-    // Ahora inyecta el URI y el Nombre al crear los archivos
+    // 5. CMAKE (TTL GENERATION DINÁMICA)
     // ==============================================================================
     const std::string cmakeFile = R"jv(
 cmake_minimum_required(VERSION 3.15)
@@ -211,7 +200,6 @@ set_target_properties(MiEfectoDSP PROPERTIES PREFIX "")
 set_target_properties(MiEfectoDSP PROPERTIES SUFFIX ".so")
 target_link_libraries(MiEfectoDSP PRIVATE DspLib juce::juce_core juce::juce_audio_basics)
 
-# --- TRUCO PRO: Pasamos el URI al código C++ para que coincida siempre ---
 target_compile_definitions(MiEfectoDSP PRIVATE PLUGIN_URI_STRING="{{PLUGIN_URI}}")
 
 file(WRITE ${CMAKE_BINARY_DIR}/manifest.ttl 
@@ -224,13 +212,8 @@ file(WRITE ${CMAKE_BINARY_DIR}/plugin.ttl
 @prefix doap: <http://usefulinc.com/ns/doap#> .
 <{{PLUGIN_URI}}> a lv2:Plugin, lv2:AudioPlugin ;
     doap:name \"{{PLUGIN_NAME}}\" ;
-    lv2:port [ a lv2:InputPort, lv2:AudioPort ; lv2:index 0 ; lv2:symbol \"in_l\" ; lv2:name \"In L\" ],
-             [ a lv2:InputPort, lv2:AudioPort ; lv2:index 1 ; lv2:symbol \"in_r\" ; lv2:name \"In R\" ],
-             [ a lv2:OutputPort, lv2:AudioPort ; lv2:index 2 ; lv2:symbol \"out_l\" ; lv2:name \"Out L\" ],
-             [ a lv2:OutputPort, lv2:AudioPort ; lv2:index 3 ; lv2:symbol \"out_r\" ; lv2:name \"Out R\" ] 
-
+    lv2:port {{AUDIO_PORTS_TTL}}
 {{TTL_PORTS}}
-
     .")
 
 add_custom_command(TARGET MiEfectoDSP POST_BUILD
