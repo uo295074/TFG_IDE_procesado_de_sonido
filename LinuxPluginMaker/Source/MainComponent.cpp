@@ -10,7 +10,8 @@
 // Definimos IDs para los menús para no liarnos con números sueltos
 enum MenuIDs {
     FileNew = 1, FileLoad, FileSave, FileExit,
-    ProjectProps, ProjectGenerate, ProjectCodeEditor, // <-- AÑADIDO
+    ProjectProps, ProjectGenerate, ProjectCodeEditor,
+    ProjectExportSource,   // NUEVO
     HelpAbout
 };
 
@@ -159,9 +160,10 @@ juce::PopupMenu MainComponent::getMenuForIndex(int topLevelMenuIndex, const juce
     {
         // AQUÍ ESTÁ LO QUE PEDÍAS: Cambiar datos desde el menú
         menu.addItem(ProjectProps, "Propiedades del Plugin...");
-        menu.addItem(ProjectCodeEditor, "Editor de Código DSP..."); // <-- AÑADIDO
+        menu.addItem(ProjectCodeEditor, "Editor de Código DSP..."); 
         menu.addSeparator();
         menu.addItem(ProjectGenerate, "Generar Código C++");
+        menu.addItem(ProjectExportSource, "Exportar código fuente...");
     }
     else if (menuName == "Ayuda")
     {
@@ -249,6 +251,40 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex)
             break;
         }
         // -----------------------------------------
+        case ProjectExportSource:
+        {
+            // Primero generamos el proyecto por si aún no existe
+            canvas.updateProjectData(project);
+            generator.createPluginFiles(project);
+
+            fileChooser = std::make_unique<juce::FileChooser>(
+                "Selecciona carpeta destino",
+                juce::File::getSpecialLocation(juce::File::userDocumentsDirectory),
+                "*"
+            );
+
+            fileChooser->launchAsync(
+                juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+                [this](const juce::FileChooser& fc)
+                {
+                    juce::File target = fc.getResult();
+                    if (target != juce::File{})
+                    {
+                        juce::File source = juce::File::getSpecialLocation(juce::File::userDesktopDirectory)
+                                    .getChildFile("MiEfectoDSP");
+
+                        source.copyDirectoryTo(target.getChildFile("MiEfectoDSP"));
+
+                        juce::AlertWindow::showMessageBoxAsync(
+                            juce::AlertWindow::InfoIcon,
+                            "Exportación completada",
+                            "El código fuente se ha exportado correctamente."
+                        );
+                    }
+                });
+
+            break;
+        }
 
         case ProjectGenerate:
             // Simulamos click en el botón naranja
