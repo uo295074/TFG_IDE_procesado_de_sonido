@@ -146,6 +146,12 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
                 }
             )";
             break;
+            
+        case PluginData::AlgorithmType::Custom:
+            // --- CÓDIGO GENERADO: PERSONALIZADO POR EL USUARIO ---
+            // Simplemente pegamos lo que el técnico escribió en la ventana
+            dspCode = project.customDspCode;
+            break;
     }
 
     // 4. PREPARAR ARCHIVOS

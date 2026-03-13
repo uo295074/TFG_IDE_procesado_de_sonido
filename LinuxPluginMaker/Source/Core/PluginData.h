@@ -1,6 +1,7 @@
 /*
   ==============================================================================
     Source/Core/PluginData.h
+    Actualizado con soporte para Código DSP Personalizado
   ==============================================================================
 */
 #pragma once
@@ -12,9 +13,10 @@ namespace PluginData
     // 1. DEFINIMOS LOS TIPOS DE EFECTO DISPONIBLES
     enum class AlgorithmType 
     { 
-        Gain,       // Multiplicación simple
-        Distortion, // Saturación (tanh)
-        Tremolo     // Modulación de amplitud (LFO)
+        Gain,       
+        Distortion, 
+        Tremolo,     
+        Custom      // <-- NUEVO: Opción de código libre
     };
 
     enum class ComponentType { Slider, Toggle, Knob };
@@ -38,10 +40,24 @@ namespace PluginData
         
         AlgorithmType currentAlgorithm = AlgorithmType::Gain; 
 
-        // --- NUEVO: Variables para Entradas y Salidas ---
-        int numInputs = 2;  // Por defecto 2 (Estéreo)
-        int numOutputs = 2; // Por defecto 2 (Estéreo)
-        // ------------------------------------------------
+        int numInputs = 2;  
+        int numOutputs = 2; 
+
+        // --- NUEVO: Variable para guardar el código del usuario ---
+        // Le ponemos un texto por defecto para guiar al técnico
+        juce::String customDspCode = 
+            "// --- TU CÓDIGO DSP AQUÍ ---\n"
+            "// Usa 'channelData[sample]' para leer/escribir el audio.\n"
+            "// Usa 'params[0]', 'params[1]', etc., para leer tus controles.\n\n"
+            "for (int channel = 0; channel < totalNumInputChannels; ++channel)\n"
+            "{\n"
+            "    auto* channelData = buffer.getWritePointer (channel);\n"
+            "    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)\n"
+            "    {\n"
+            "        // Ejemplo: channelData[sample] *= params[0];\n"
+            "    }\n"
+            "}\n";
+        // ----------------------------------------------------------
 
         std::vector<Component> components;
 
@@ -57,7 +73,6 @@ namespace PluginData
             components.push_back(c);
         }
 
-        // --- RU-02: GUARDAR A XML ---
         std::unique_ptr<juce::XmlElement> toXml() const
         {
             auto xml = std::make_unique<juce::XmlElement>("LINUX_PLUGIN_MAKER_PROJECT");
@@ -65,11 +80,14 @@ namespace PluginData
             xml->setAttribute("manufacturer", manufacturer);
             xml->setAttribute("uri", pluginURI);
             xml->setAttribute("algorithm", (int)currentAlgorithm);
-            
-            // --- NUEVO: Guardar en XML ---
             xml->setAttribute("numInputs", numInputs);
             xml->setAttribute("numOutputs", numOutputs);
-            // -----------------------------
+
+            // --- NUEVO: Guardar el código C++ en el XML ---
+            auto dspXml = new juce::XmlElement("CUSTOM_DSP");
+            dspXml->addTextElement(customDspCode);
+            xml->addChildElement(dspXml);
+            // ----------------------------------------------
 
             auto compsXml = new juce::XmlElement("COMPONENTS");
             for (const auto& comp : components) {
@@ -83,11 +101,10 @@ namespace PluginData
                 cXml->setAttribute("def", comp.def);
                 compsXml->addChildElement(cXml);
             }
-            xml->addChildElement(compsXml); // El padre toma control de la memoria
+            xml->addChildElement(compsXml); 
             return xml;
         }
 
-        // --- RU-02: CARGAR DESDE XML ---
         void fromXml(juce::XmlElement* xml)
         {
             if (xml == nullptr || xml->getTagName() != "LINUX_PLUGIN_MAKER_PROJECT") return;
@@ -96,15 +113,17 @@ namespace PluginData
             manufacturer = xml->getStringAttribute("manufacturer", "Mi Nombre");
             pluginURI = xml->getStringAttribute("uri", "http://miweb.com/plugins/miplugin");
             currentAlgorithm = (AlgorithmType)xml->getIntAttribute("algorithm", 0);
-
-            // --- NUEVO: Leer desde XML ---
             numInputs = xml->getIntAttribute("numInputs", 2);
             numOutputs = xml->getIntAttribute("numOutputs", 2);
-            // -----------------------------
+
+            // --- NUEVO: Leer el código C++ desde el XML ---
+            if (auto* dspXml = xml->getChildByName("CUSTOM_DSP")) {
+                customDspCode = dspXml->getAllSubText();
+            }
+            // ----------------------------------------------
 
             components.clear();
             if (auto* compsXml = xml->getChildByName("COMPONENTS")) {
-                // Iteramos por cada componente guardado
                 for (auto* cXml : compsXml->getChildIterator()) {
                     Component c;
                     c.index = cXml->getIntAttribute("index");
@@ -120,7 +139,6 @@ namespace PluginData
         }
     };
     
-    // Función auxiliar para convertir el enum a texto (útil para la UI)
     static juce::String getAlgorithmName(AlgorithmType type)
     {
         switch (type)
@@ -128,7 +146,81 @@ namespace PluginData
             case AlgorithmType::Gain:       return "Control de Ganancia (Básico)";
             case AlgorithmType::Distortion: return "Distorsión (Saturación)";
             case AlgorithmType::Tremolo:    return "Trémolo (Modulación AM)";
+            case AlgorithmType::Custom:     return "C++ Personalizado (Avanzado)"; // <-- NUEVO
             default: return "Desconocido";
         }
     }
+
+    static juce::String getDefaultDSPCode(AlgorithmType type)
+{
+    switch (type)
+    {
+        case AlgorithmType::Distortion:
+            return R"(
+float drive = 1.0f;
+if (params.size() > 0) drive = params[0];
+
+drive = 1.0f + (drive * 10.0f);
+
+for (int channel = 0; channel < totalNumInputChannels; ++channel)
+{
+    auto* channelData = buffer.getWritePointer(channel);
+
+    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+    {
+        channelData[sample] = std::tanh(channelData[sample] * drive);
+    }
+}
+)";
+
+        case AlgorithmType::Tremolo:
+            return R"(
+float freq = 1.0f;
+float depth = 0.5f;
+
+if (params.size() > 0) freq = params[0];
+if (params.size() > 1) depth = params[1];
+
+static float currentPhase = 0.0f;
+float sampleRate = getSampleRate();
+float phaseIncrement = (freq * 2.0f * juce::MathConstants<float>::pi) / sampleRate;
+
+for (int channel = 0; channel < totalNumInputChannels; ++channel)
+{
+    auto* channelData = buffer.getWritePointer(channel);
+    float phase = currentPhase;
+
+    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+    {
+        float lfo = 1.0f - (depth * 0.5f * (1.0f + std::sin(phase)));
+        channelData[sample] *= lfo;
+
+        phase += phaseIncrement;
+        if (phase >= 2.0f * juce::MathConstants<float>::pi)
+            phase -= 2.0f * juce::MathConstants<float>::pi;
+    }
+
+    if (channel == totalNumInputChannels - 1)
+        currentPhase = phase;
+}
+)";
+
+        case AlgorithmType::Gain:
+        default:
+            return R"(
+float gain = 1.0f;
+if (params.size() > 0) gain = params[0];
+
+for (int channel = 0; channel < totalNumInputChannels; ++channel)
+{
+    auto* channelData = buffer.getWritePointer(channel);
+
+    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+    {
+        channelData[sample] *= gain;
+    }
+}
+)";
+    }
+}
 }

@@ -2328,6 +2328,9 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Source\Core\CodeEditorPanel.h">
+      <Filter>LinuxPluginMaker\Source\Core</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\Source\Core\PluginCanvas.h">
       <Filter>LinuxPluginMaker\Source\Core</Filter>
     </ClInclude>

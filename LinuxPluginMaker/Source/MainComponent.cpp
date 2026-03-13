@@ -1,14 +1,16 @@
 /*
   ==============================================================================
     Source/MainComponent.cpp
+    Actualizado con Editor de Código DSP Modal
   ==============================================================================
 */
 #include "MainComponent.h"
+#include "Core/CodeEditorPanel.h"
 
 // Definimos IDs para los menús para no liarnos con números sueltos
 enum MenuIDs {
     FileNew = 1, FileLoad, FileSave, FileExit,
-    ProjectProps, ProjectGenerate,
+    ProjectProps, ProjectGenerate, ProjectCodeEditor, // <-- AÑADIDO
     HelpAbout
 };
 
@@ -157,6 +159,7 @@ juce::PopupMenu MainComponent::getMenuForIndex(int topLevelMenuIndex, const juce
     {
         // AQUÍ ESTÁ LO QUE PEDÍAS: Cambiar datos desde el menú
         menu.addItem(ProjectProps, "Propiedades del Plugin...");
+        menu.addItem(ProjectCodeEditor, "Editor de Código DSP..."); // <-- AÑADIDO
         menu.addSeparator();
         menu.addItem(ProjectGenerate, "Generar Código C++");
     }
@@ -227,6 +230,25 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex)
             // ESTO ES CLAVE: Forzamos al panel derecho a mostrar los datos globales
             propertiesPanel.inspectProject(&project);
             break;
+
+        // --- NUEVO CASO: ABRIR EL EDITOR MODAL ---
+        case ProjectCodeEditor:
+        {
+            auto* editorPanel = new CodeEditorPanel(project);
+            
+            juce::DialogWindow::LaunchOptions options;
+            options.content.setOwned(editorPanel);
+            options.content->setSize(700, 500);
+            options.dialogTitle = "Editor de Código C++ Personalizado";
+            options.dialogBackgroundColour = juce::Colours::darkgrey;
+            options.escapeKeyTriggersCloseButton = true;
+            options.useNativeTitleBar = true;
+            options.resizable = true;
+
+            options.launchAsync();
+            break;
+        }
+        // -----------------------------------------
 
         case ProjectGenerate:
             // Simulamos click en el botón naranja

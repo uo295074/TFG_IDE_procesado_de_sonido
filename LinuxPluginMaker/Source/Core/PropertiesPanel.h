@@ -237,7 +237,14 @@ private:
             if (outId > 0) currentProject->numOutputs = outId;
 
             int id = algoCombo.getSelectedId();
-            if (id > 0) currentProject->currentAlgorithm = (PluginData::AlgorithmType)(id - 1);
+            if (id > 0)
+            {
+                currentProject->currentAlgorithm = (PluginData::AlgorithmType)(id - 1);
+
+                // Actualizamos el código DSP automáticamente
+                currentProject->customDspCode =
+                PluginData::getDefaultDSPCode(currentProject->currentAlgorithm);
+}
         }
     }
 };
