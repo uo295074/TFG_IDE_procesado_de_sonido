@@ -113,11 +113,23 @@ public:
     void mouseDrag(const juce::MouseEvent& e) override
     {
         dragger.dragComponent(this, e, nullptr);
-        
-        // Límites de seguridad para no perder el componente fuera de pantalla
+
+        // Tamaño de la rejilla (debe coincidir con el canvas)
+        const int gridSize = 20;
+
+        int x = getX();
+        int y = getY();
+
+        // Ajustar a la rejilla
+        x = (x / gridSize) * gridSize;
+        y = (y / gridSize) * gridSize;
+
+        setTopLeftPosition(x, y);
+
+        // Límites de seguridad
         if (getX() < 0) setTopLeftPosition(0, getY());
         if (getY() < 0) setTopLeftPosition(getX(), 0);
-    }
+}
 
     void paint(juce::Graphics& g) override
     {
