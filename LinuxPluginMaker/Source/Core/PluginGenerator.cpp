@@ -75,83 +75,114 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
     }
 
     // 3. GENERAR CÓDIGO DSP MATEMÁTICO
+
+    // --- MAPEO DE PARÁMETROS ---
+    int mainParam = -1;   // Slider/Knob
+    int bypassParam = -1; // Toggle
+
+    for (int i = 0; i < project.components.size(); ++i)
+    {
+        const auto& comp = project.components[i];
+
+        if ((comp.type == PluginData::ComponentType::Slider ||
+            comp.type == PluginData::ComponentType::Knob) && mainParam == -1)
+            {
+                mainParam = i;
+            }
+        else if (comp.type == PluginData::ComponentType::Toggle && bypassParam == -1)
+        {
+            bypassParam = i;
+        }
+    }
+
+    // Strings dinámicos
+    juce::String mainParamStr = (mainParam >= 0) ? "params[" + juce::String(mainParam) + "]" : "1.0f";
+    juce::String bypassStr = (bypassParam >= 0) ? "params[" + juce::String(bypassParam) + "]" : "1.0f";
+
     juce::String dspCode = "";
 
     switch (project.currentAlgorithm)
     {
-        case PluginData::AlgorithmType::Distortion:
-            dspCode = R"(
-                // --- CÓDIGO GENERADO: DISTORSIÓN ---
-                float drive = 1.0f;
-                if (params.size() > 0) drive = params[0]; 
+    case PluginData::AlgorithmType::Distortion:
+        dspCode = R"(
 
-                drive = 1.0f + (drive * 10.0f); 
+        // --- DISTORSIÓN DINÁMICA ---
+        float drive = 1.0f + ()" + mainParamStr + R"( * 10.0f);
+        bool enabled = ()" + bypassStr + R"( > 0.5f);
 
-                for (int channel = 0; channel < totalNumInputChannels; ++channel)
+        for (int channel = 0; channel < totalNumInputChannels; ++channel)
+        {
+            auto* channelData = buffer.getWritePointer(channel);
+
+            for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+            {
+                if (enabled)
+                    channelData[sample] = std::tanh(channelData[sample] * drive);
+            }
+        }
+        )";
+        break;
+
+    case PluginData::AlgorithmType::Tremolo:
+        dspCode = R"(
+
+        // --- TREMOLO DINÁMICO ---
+        float freq = )" + mainParamStr + R"(;
+        float depth = 0.5f;
+        bool enabled = ()" + bypassStr + R"( > 0.5f);
+
+        static float currentPhase = 0.0f;
+        float sampleRate = getSampleRate();
+        float phaseIncrement = (freq * 2.0f * juce::MathConstants<float>::pi) / sampleRate;
+
+        for (int channel = 0; channel < totalNumInputChannels; ++channel)
+        {
+            auto* channelData = buffer.getWritePointer(channel);
+            float phase = currentPhase;
+
+            for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+            {
+                if (enabled)
                 {
-                    auto* channelData = buffer.getWritePointer (channel);
-                    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
-                    {
-                        channelData[sample] = std::tanh(channelData[sample] * drive);
-                    }
+                    float lfo = 1.0f - (depth * 0.5f * (1.0f + std::sin(phase)));
+                    channelData[sample] *= lfo;
                 }
-            )";
-            break;
 
-        case PluginData::AlgorithmType::Tremolo:
-            dspCode = R"(
-                // --- CÓDIGO GENERADO: TRÉMOLO ---
-                float freq = 1.0f; 
-                float depth = 0.5f;
-                
-                if (params.size() > 0) freq = params[0];
-                if (params.size() > 1) depth = params[1];
+                phase += phaseIncrement;
+                if (phase >= 2.0f * juce::MathConstants<float>::pi)
+                    phase -= 2.0f * juce::MathConstants<float>::pi;
+            }
 
-                static float currentPhase = 0.0f; 
-                float sampleRate = getSampleRate();
-                float phaseIncrement = (freq * 2.0f * juce::MathConstants<float>::pi) / sampleRate;
+            if (channel == totalNumInputChannels - 1)
+                currentPhase = phase;
+        }
+        )";
+        break;
 
-                for (int channel = 0; channel < totalNumInputChannels; ++channel)
-                {
-                    auto* channelData = buffer.getWritePointer (channel);
-                    float phase = currentPhase; 
-                    
-                    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
-                    {
-                        float lfo = 1.0f - (depth * 0.5f * (1.0f + std::sin(phase)));
-                        channelData[sample] *= lfo;
-                        
-                        phase += phaseIncrement;
-                        if (phase >= 2.0f * juce::MathConstants<float>::pi) phase -= 2.0f * juce::MathConstants<float>::pi;
-                    }
-                    if (channel == totalNumInputChannels - 1) currentPhase = phase; 
-                }
-            )";
-            break;
+    case PluginData::AlgorithmType::Gain:
+    default:
+        dspCode = R"(
 
-        case PluginData::AlgorithmType::Gain:
-        default:
-            dspCode = R"(
-                // --- CÓDIGO GENERADO: GANANCIA ---
-                float gain = 1.0f;
-                if (params.size() > 0) gain = params[0]; 
+        // --- GANANCIA DINÁMICA ---
+        float gain = )" + mainParamStr + R"(;
+        bool enabled = ()" + bypassStr + R"( > 0.5f);
 
-                for (int channel = 0; channel < totalNumInputChannels; ++channel)
-                {
-                    auto* channelData = buffer.getWritePointer (channel);
-                    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
-                    {
-                        channelData[sample] *= gain;
-                    }
-                }
-            )";
-            break;
-            
-        case PluginData::AlgorithmType::Custom:
-            // --- CÓDIGO GENERADO: PERSONALIZADO POR EL USUARIO ---
-            // Simplemente pegamos lo que el técnico escribió en la ventana
-            dspCode = project.customDspCode;
-            break;
+        for (int channel = 0; channel < totalNumInputChannels; ++channel)
+        {
+            auto* channelData = buffer.getWritePointer(channel);
+
+            for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+            {
+                if (enabled)
+                    channelData[sample] *= gain;
+            }
+        }
+        )";
+        break;
+
+    case PluginData::AlgorithmType::Custom:
+        dspCode = project.customDspCode;
+        break;
     }
 
     // 4. PREPARAR ARCHIVOS
