@@ -1,7 +1,7 @@
 /*
   ==============================================================================
     Source/Core/PluginGenerator.cpp
-    Actualizado para inyectar configuración de Canales de Audio (Mono/Estéreo)
+    (VERSIÓN PRO: Mapeo por nombre de parámetros)
   ==============================================================================
 */
 
@@ -10,7 +10,6 @@
 
 PluginGenerator::PluginGenerator()
 {
-    // Apuntamos al Escritorio/MiEfectoDSP
     desktopDir = juce::File::getSpecialLocation(juce::File::userDesktopDirectory)
                  .getChildFile("MiEfectoDSP");
 }
@@ -21,206 +20,222 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
     juce::File sourceDir = desktopDir.getChildFile("Source");
     if (!sourceDir.exists()) sourceDir.createDirectory();
 
-    // --- 1. GENERAR PUERTOS DE AUDIO (DINÁMICO MONO/ESTÉREO) ---
+    // ================================
+    // 1. AUDIO PORTS
+    // ================================
     juce::String audioPortsTtl = "";
     int portIndex = 0;
-    
-    // Entradas
+
     for (int i = 0; i < project.numInputs; ++i) {
-        audioPortsTtl += "[ a lv2:InputPort, lv2:AudioPort ; lv2:index " + juce::String(portIndex) + 
+        audioPortsTtl += "[ a lv2:InputPort, lv2:AudioPort ; lv2:index " + juce::String(portIndex) +
                          " ; lv2:symbol \\\"in_" + juce::String(i) + "\\\" ; lv2:name \\\"In " + juce::String(i+1) + "\\\" ]";
         portIndex++;
-        // Ponemos coma si no es el último puerto en total
         if (i < project.numInputs - 1 || project.numOutputs > 0) audioPortsTtl += ",\n             ";
     }
-    
-    // Salidas
+
     for (int i = 0; i < project.numOutputs; ++i) {
-        audioPortsTtl += "[ a lv2:OutputPort, lv2:AudioPort ; lv2:index " + juce::String(portIndex) + 
+        audioPortsTtl += "[ a lv2:OutputPort, lv2:AudioPort ; lv2:index " + juce::String(portIndex) +
                          " ; lv2:symbol \\\"out_" + juce::String(i) + "\\\" ; lv2:name \\\"Out " + juce::String(i+1) + "\\\" ]";
         portIndex++;
         if (i < project.numOutputs - 1) audioPortsTtl += ",\n             ";
     }
 
-    // --- 2. GENERAR PUERTOS DE PARÁMETROS ---
+    // ================================
+    // 2. CONTROL PORTS
+    // ================================
     juce::String ttlPorts = "";
-    
+
     for (const auto& comp : project.components)
     {
-        ttlPorts += ",\n             [ "; 
-        
+        ttlPorts += ",\n             [ ";
+
         if (comp.type == PluginData::ComponentType::Slider || comp.type == PluginData::ComponentType::Knob)
         {
             ttlPorts += "a lv2:InputPort, lv2:ControlPort ; ";
-            ttlPorts += "lv2:index " + juce::String(portIndex) + " ; "; 
-            ttlPorts += "lv2:symbol \\\"" + comp.symbol + "\\\" ; "; 
+            ttlPorts += "lv2:index " + juce::String(portIndex) + " ; ";
+            ttlPorts += "lv2:symbol \\\"" + comp.symbol + "\\\" ; ";
             ttlPorts += "lv2:name \\\"" + comp.name + "\\\" ; ";
             ttlPorts += "lv2:default " + juce::String(comp.def) + " ; ";
             ttlPorts += "lv2:minimum " + juce::String(comp.min) + " ; ";
-            ttlPorts += "lv2:maximum " + juce::String(comp.max); 
+            ttlPorts += "lv2:maximum " + juce::String(comp.max);
         }
         else if (comp.type == PluginData::ComponentType::Toggle)
         {
             ttlPorts += "a lv2:InputPort, lv2:ControlPort ; ";
-            ttlPorts += "lv2:portProperty lv2:toggled ; "; 
-            ttlPorts += "lv2:index " + juce::String(portIndex) + " ; "; 
+            ttlPorts += "lv2:portProperty lv2:toggled ; ";
+            ttlPorts += "lv2:index " + juce::String(portIndex) + " ; ";
             ttlPorts += "lv2:symbol \\\"" + comp.symbol + "\\\" ; ";
             ttlPorts += "lv2:name \\\"" + comp.name + "\\\" ; ";
             ttlPorts += "lv2:default " + juce::String(comp.def) + " ; ";
-            ttlPorts += "lv2:minimum 0 ; lv2:maximum 1"; 
+            ttlPorts += "lv2:minimum 0 ; lv2:maximum 1";
         }
 
-        ttlPorts += " ] "; 
-        portIndex++; 
+        ttlPorts += " ] ";
+        portIndex++;
     }
 
-    // 3. GENERAR CÓDIGO DSP MATEMÁTICO
+    // ================================
+    // 3. MAPEO POR NOMBRE
+    // ================================
 
-    // --- MAPEO DE PARÁMETROS ---
-    int mainParam = -1;   // Slider/Knob
-    int bypassParam = -1; // Toggle
+    int driveParam = -1;
+    int mixParam   = -1;
+    int toneParam  = -1;
+    int gainParam  = -1;
+    int freqParam  = -1;
+    int depthParam = -1;
+    int toggleParam = -1;
 
     for (int i = 0; i < project.components.size(); ++i)
     {
-        const auto& comp = project.components[i];
+        auto name = project.components[i].name.toLowerCase();
 
-        if ((comp.type == PluginData::ComponentType::Slider ||
-            comp.type == PluginData::ComponentType::Knob) && mainParam == -1)
-            {
-                mainParam = i;
-            }
-        else if (comp.type == PluginData::ComponentType::Toggle && bypassParam == -1)
-        {
-            bypassParam = i;
-        }
+        if (name.contains("drive")) driveParam = i;
+        else if (name.contains("mix")) mixParam = i;
+        else if (name.contains("tone")) toneParam = i;
+        else if (name.contains("gain")) gainParam = i;
+        else if (name.contains("freq")) freqParam = i;
+        else if (name.contains("depth")) depthParam = i;
+        else if (project.components[i].type == PluginData::ComponentType::Toggle && toggleParam == -1)
+            toggleParam = i;
     }
 
-    // Strings dinámicos
-    juce::String mainParamStr = (mainParam >= 0) ? "params[" + juce::String(mainParam) + "]" : "1.0f";
-    juce::String bypassStr = (bypassParam >= 0) ? "params[" + juce::String(bypassParam) + "]" : "1.0f";
+    auto getParam = [&](int idx, juce::String def)
+    {
+        return (idx >= 0) ? "params[" + juce::String(idx) + "]" : def;
+    };
 
-    juce::String dspCode = "";
+    juce::String driveStr = getParam(driveParam, "0.5f");
+    juce::String mixStr   = getParam(mixParam, "1.0f");
+    juce::String toneStr  = getParam(toneParam, "1.0f");
+    juce::String gainStr  = getParam(gainParam, "1.0f");
+    juce::String freqStr  = getParam(freqParam, "1.0f");
+    juce::String depthStr = getParam(depthParam, "0.5f");
+    juce::String toggleStr = getParam(toggleParam, "1.0f");
+
+    juce::String dspCode;
+
+    // ================================
+    // 4. DSP GENERATION
+    // ================================
 
     switch (project.currentAlgorithm)
     {
-    case PluginData::AlgorithmType::Distortion:
-        dspCode = R"(
+        case PluginData::AlgorithmType::Distortion:
+            dspCode = R"(
 
-        // --- DISTORSIÓN DINÁMICA ---
-        float drive = 1.0f + ()" + mainParamStr + R"( * 10.0f);
-        bool enabled = ()" + bypassStr + R"( > 0.5f);
+            float drive = 1.0f + ()" + driveStr + R"( * 10.0f);
+            float mix = )" + mixStr + R"(;
+            float tone = )" + toneStr + R"(;
+            bool enabled = ()" + toggleStr + R"( > 0.5f);
 
-        for (int channel = 0; channel < totalNumInputChannels; ++channel)
-        {
-            auto* channelData = buffer.getWritePointer(channel);
-
-            for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+            for (int ch = 0; ch < totalNumInputChannels; ++ch)
             {
-                if (enabled)
-                    channelData[sample] = std::tanh(channelData[sample] * drive);
-            }
-        }
-        )";
-        break;
+                auto* data = buffer.getWritePointer(ch);
 
-    case PluginData::AlgorithmType::Tremolo:
-        dspCode = R"(
-
-        // --- TREMOLO DINÁMICO ---
-        float freq = )" + mainParamStr + R"(;
-        float depth = 0.5f;
-        bool enabled = ()" + bypassStr + R"( > 0.5f);
-
-        static float currentPhase = 0.0f;
-        float sampleRate = getSampleRate();
-        float phaseIncrement = (freq * 2.0f * juce::MathConstants<float>::pi) / sampleRate;
-
-        for (int channel = 0; channel < totalNumInputChannels; ++channel)
-        {
-            auto* channelData = buffer.getWritePointer(channel);
-            float phase = currentPhase;
-
-            for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
-            {
-                if (enabled)
+                for (int i = 0; i < buffer.getNumSamples(); ++i)
                 {
-                    float lfo = 1.0f - (depth * 0.5f * (1.0f + std::sin(phase)));
-                    channelData[sample] *= lfo;
+                    float clean = data[i];
+
+                    if (enabled)
+                    {
+                        float distorted = std::tanh(clean * drive);
+                        float out = (clean * (1.0f - mix)) + (distorted * mix);
+                        out *= tone;
+                        data[i] = out;
+                    }
                 }
-
-                phase += phaseIncrement;
-                if (phase >= 2.0f * juce::MathConstants<float>::pi)
-                    phase -= 2.0f * juce::MathConstants<float>::pi;
             }
+            )";
+            break;
 
-            if (channel == totalNumInputChannels - 1)
-                currentPhase = phase;
-        }
-        )";
-        break;
+        case PluginData::AlgorithmType::Tremolo:
+            dspCode = R"(
 
-    case PluginData::AlgorithmType::Gain:
-    default:
-        dspCode = R"(
+            float freq = )" + freqStr + R"(;
+            float depth = )" + depthStr + R"(;
+            bool enabled = ()" + toggleStr + R"( > 0.5f);
 
-        // --- GANANCIA DINÁMICA ---
-        float gain = )" + mainParamStr + R"(;
-        bool enabled = ()" + bypassStr + R"( > 0.5f);
+            static float phase = 0.0f;
+            float sr = getSampleRate();
+            float inc = (freq * 2.0f * juce::MathConstants<float>::pi) / sr;
 
-        for (int channel = 0; channel < totalNumInputChannels; ++channel)
-        {
-            auto* channelData = buffer.getWritePointer(channel);
-
-            for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+            for (int ch = 0; ch < totalNumInputChannels; ++ch)
             {
-                if (enabled)
-                    channelData[sample] *= gain;
-            }
-        }
-        )";
-        break;
+                auto* data = buffer.getWritePointer(ch);
 
-    case PluginData::AlgorithmType::Custom:
-        dspCode = project.customDspCode;
-        break;
+                for (int i = 0; i < buffer.getNumSamples(); ++i)
+                {
+                    if (enabled)
+                    {
+                        float lfo = 1.0f - (depth * 0.5f * (1.0f + std::sin(phase)));
+                        data[i] *= lfo;
+                    }
+
+                    phase += inc;
+                    if (phase > 2.0f * juce::MathConstants<float>::pi)
+                        phase -= 2.0f * juce::MathConstants<float>::pi;
+                }
+            }
+            )";
+            break;
+
+        case PluginData::AlgorithmType::Gain:
+        default:
+            dspCode = R"(
+
+            float gain = )" + gainStr + R"(;
+            bool enabled = ()" + toggleStr + R"( > 0.5f);
+
+            for (int ch = 0; ch < totalNumInputChannels; ++ch)
+            {
+                auto* data = buffer.getWritePointer(ch);
+
+                for (int i = 0; i < buffer.getNumSamples(); ++i)
+                {
+                    if (enabled)
+                        data[i] *= gain;
+                }
+            }
+            )";
+            break;
+
+        case PluginData::AlgorithmType::Custom:
+            dspCode = project.customDspCode;
+            break;
     }
 
-    // 4. PREPARAR ARCHIVOS
+    // ================================
+    // 5. FILE GENERATION
+    // ================================
     juce::String cmakeContent = Templates::cmakeFile;
-    
-    juce::String cleanURI = project.pluginURI.replace("\r", "").replace("\n", "").trim();
-    juce::String cleanName = project.pluginName.replace("\r", "").replace("\n", "").trim();
 
     cmakeContent = cmakeContent.replace("{{AUDIO_PORTS_TTL}}", audioPortsTtl);
     cmakeContent = cmakeContent.replace("{{TTL_PORTS}}", ttlPorts);
-    cmakeContent = cmakeContent.replace("{{PLUGIN_NAME}}", cleanName); 
-    cmakeContent = cmakeContent.replace("{{PLUGIN_URI}}", cleanURI);  
-    
+    cmakeContent = cmakeContent.replace("{{PLUGIN_NAME}}", project.pluginName);
+    cmakeContent = cmakeContent.replace("{{PLUGIN_URI}}", project.pluginURI);
+
     juce::String editorContent = Templates::editorCpp;
     editorContent = editorContent.replace("{{NUM_INPUTS}}", juce::String(project.numInputs));
     editorContent = editorContent.replace("{{NUM_OUTPUTS}}", juce::String(project.numOutputs));
     editorContent = editorContent.replace("{{NUM_PARAMS}}", juce::String(project.components.size()));
 
     juce::String processorContent = Templates::processorCpp;
-    
-    if (processorContent.contains("{{DSP_CODE}}"))
-        processorContent = processorContent.replace("{{DSP_CODE}}", dspCode);
-    else
-        processorContent = processorContent.replace("// INSERT_DSP_HERE", dspCode);
+    processorContent = processorContent.replace("{{DSP_CODE}}", dspCode);
 
-    // 5. ESCRIBIR EN DISCO
     desktopDir.getChildFile("CMakeLists.txt").replaceWithText(cmakeContent);
     sourceDir.getChildFile("PluginProcessor.h").replaceWithText(Templates::processorHeader);
     sourceDir.getChildFile("PluginProcessor.cpp").replaceWithText(processorContent);
     sourceDir.getChildFile("PluginEditor.h").replaceWithText(Templates::editorHeader);
     sourceDir.getChildFile("PluginEditor.cpp").replaceWithText(editorContent);
 
-    juce::Logger::writeToLog("Archivos generados correctamente en: " + desktopDir.getFullPathName());
 }
 
-// ==============================================================================
+
+    // ==============================================================================
 // AUTOMATIZACIÓN DE COMPILACIÓN E INSTALACIÓN
 // ==============================================================================
+
 juce::String PluginGenerator::compileAndInstallPlugin(const PluginData::Project& project)
 {
     juce::String safeName = "";
