@@ -101,7 +101,7 @@ public:
             int row = currentCount / itemsPerRow;
             int col = currentCount % itemsPerRow;
             newComp->setTopLeftPosition(margin + (col * itemWidth), margin + (row * itemHeight));
-            
+            newComp->setRole(c.role);
             addAndMakeVisible(newComp);
             elements.add(newComp);
         }
@@ -135,7 +135,7 @@ public:
             {
                 comp.min = 0; comp.max = 1; comp.def = 0;
             }
-            
+            comp.role = el->getRole();
             project.components.push_back(comp);
         }
     }

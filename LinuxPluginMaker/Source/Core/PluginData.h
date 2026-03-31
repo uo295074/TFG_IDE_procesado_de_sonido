@@ -16,10 +16,21 @@ namespace PluginData
         Gain,       
         Distortion, 
         Tremolo,     
-        Custom      // <-- NUEVO: Opción de código libre
+        Custom      
     };
 
     enum class ComponentType { Slider, Toggle, Knob };
+
+    enum class ParamRole
+    {
+        None,
+        Gain,
+        Drive,
+        Mix,
+        Tone,
+        Frequency,
+        Depth
+    };
 
     struct Component
     {
@@ -27,6 +38,7 @@ namespace PluginData
         ComponentType type;
         juce::String name;
         juce::String symbol;
+        ParamRole role = ParamRole::None;
         float min = 0.0f;
         float max = 1.0f;
         float def = 0.5f;
@@ -99,6 +111,7 @@ namespace PluginData
                 cXml->setAttribute("min", comp.min);
                 cXml->setAttribute("max", comp.max);
                 cXml->setAttribute("def", comp.def);
+                cXml->setAttribute("role", (int)comp.role);
                 compsXml->addChildElement(cXml);
             }
             xml->addChildElement(compsXml); 
@@ -133,6 +146,7 @@ namespace PluginData
                     c.min = cXml->getDoubleAttribute("min", 0.0);
                     c.max = cXml->getDoubleAttribute("max", 1.0);
                     c.def = cXml->getDoubleAttribute("def", 0.5);
+                    c.role = (ParamRole)cXml->getIntAttribute("role", 0);
                     components.push_back(c);
                 }
             }
@@ -146,7 +160,7 @@ namespace PluginData
             case AlgorithmType::Gain:       return "Control de Ganancia (Básico)";
             case AlgorithmType::Distortion: return "Distorsión (Saturación)";
             case AlgorithmType::Tremolo:    return "Trémolo (Modulación AM)";
-            case AlgorithmType::Custom:     return "C++ Personalizado (Avanzado)"; // <-- NUEVO
+            case AlgorithmType::Custom:     return "C++ Personalizado (Avanzado)"; 
             default: return "Desconocido";
         }
     }

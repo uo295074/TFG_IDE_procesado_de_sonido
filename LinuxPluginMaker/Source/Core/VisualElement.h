@@ -2,7 +2,7 @@
   ==============================================================================
     Source/Core/VisualElement.h
     Representa un componente visual en el canvas.
-    Actualizado para cumplir RU-05 (Propiedades editables) y RU-06 (Diseño visual).
+    (VERSIÓN PRO: soporte ParamRole)
   ==============================================================================
 */
 #pragma once
@@ -12,70 +12,64 @@
 class VisualElement : public juce::Component
 {
 public:
-    // Callback público: Avisa al padre cuando se hace clic en este elemento
     std::function<void()> onClick;
 
     VisualElement(PluginData::ComponentType type, int index, const juce::String& name)
         : componentType(type), componentIndex(index)
     {
-        // Configuración visual del contenedor arrastrable
         setOpaque(false);
-        
-        // --- INICIALIZACIÓN DE DATOS (RU-05) ---
+
+        // --- DATOS ---
         compName = name;
-        // Generamos un ID único por defecto (ej: control1, switch2)
         compSymbol = (type == PluginData::ComponentType::Slider ? "control" : "switch") + juce::String(index);
-        
-        // Valores por defecto
+
+        // NUEVO: ROLE
+        role = PluginData::ParamRole::None;
+
         if (type == PluginData::ComponentType::Slider) {
             minVal = 0.0f; maxVal = 1.0f; defVal = 0.5f;
         } else {
-            minVal = 0.0f; maxVal = 1.0f; defVal = 0.0f; // Para switch 0 o 1
+            minVal = 0.0f; maxVal = 1.0f; defVal = 0.0f;
         }
 
-        // --- CONSTRUCCIÓN DE LA INTERFAZ ---
-        // 1. CREAR SLIDER O KNOB
+        // --- UI ---
         if (type == PluginData::ComponentType::Slider || type == PluginData::ComponentType::Knob)
         {
             slider.reset(new juce::Slider());
-            
-            // Aquí le damos el traje correcto a cada uno
-            if (type == PluginData::ComponentType::Slider) {
-                slider->setSliderStyle(juce::Slider::LinearVertical); // Barra vertical
-            } else {
-                slider->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag); // Ruleta
-            }
+
+            if (type == PluginData::ComponentType::Slider)
+                slider->setSliderStyle(juce::Slider::LinearVertical);
+            else
+                slider->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
 
             slider->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
-            
-            // EL TRUCO: Desactivar interacción del hijo para permitir arrastre del padre
-            slider->setInterceptsMouseClicks(false, false); 
-            
+            slider->setInterceptsMouseClicks(false, false);
+
             addAndMakeVisible(slider.get());
-            
-            // Etiqueta
+
             label.setText(name, juce::dontSendNotification);
             label.setJustificationType(juce::Justification::centred);
             label.attachToComponent(slider.get(), false);
-            
-            setSize(80, 100); 
+
+            setSize(80, 100);
         }
-        // 2. CREAR SWITCH
         else if (type == PluginData::ComponentType::Toggle)
         {
             toggle.reset(new juce::ToggleButton(name));
             toggle->setInterceptsMouseClicks(false, false);
-            
+
             addAndMakeVisible(toggle.get());
             setSize(100, 30);
         }
     }
 
-    // --- MÉTODOS DE ACCESO PARA EL INSPECTOR DE PROPIEDADES ---
-    void setName(const juce::String& n) 
-    { 
-        compName = n; 
-        // Actualizamos también la etiqueta visual para que el usuario vea el cambio
+    // =========================
+    // GETTERS / SETTERS
+    // =========================
+
+    void setName(const juce::String& n)
+    {
+        compName = n;
         label.setText(n, juce::dontSendNotification);
         if (toggle) toggle->setButtonText(n);
         repaint();
@@ -85,28 +79,39 @@ public:
     void setSymbol(const juce::String& s) { compSymbol = s; }
     juce::String getSymbol() const { return compSymbol; }
 
-    void setRange(float mn, float mx, float df) { minVal = mn; maxVal = mx; defVal = df; }
+    void setRange(float mn, float mx, float df)
+    {
+        minVal = mn; maxVal = mx; defVal = df;
+    }
     float getMin() const { return minVal; }
     float getMax() const { return maxVal; }
     float getDef() const { return defVal; }
 
-    // Gestión de Selección
+    // =========================
+    // NUEVO: ROLE
+    // =========================
+    void setRole(PluginData::ParamRole r) { role = r; }
+    PluginData::ParamRole getRole() const { return role; }
+
+    // =========================
+    // SELECCIÓN
+    // =========================
     void setSelected(bool shouldBeSelected)
     {
         isSelected = shouldBeSelected;
-        repaint(); // Forzar repintado para cambiar el color del borde
+        repaint();
     }
     bool getSelected() const { return isSelected; }
 
-    // --- EVENTOS DE RATÓN (ARRASTRE Y SELECCIÓN) ---
+    // =========================
+    // MOUSE
+    // =========================
     void mouseDown(const juce::MouseEvent& e) override
     {
-        // 1. Notificar selección
         if (onClick) onClick();
 
-        // 2. Iniciar arrastre
         dragger.startDraggingComponent(this, e);
-        toFront(true); 
+        toFront(true);
         repaint();
     }
 
@@ -114,39 +119,53 @@ public:
     {
         dragger.dragComponent(this, e, nullptr);
 
-        // Tamaño de la rejilla (debe coincidir con el canvas)
         const int gridSize = 20;
 
-        int x = getX();
-        int y = getY();
-
-        // Ajustar a la rejilla
-        x = (x / gridSize) * gridSize;
-        y = (y / gridSize) * gridSize;
+        int x = (getX() / gridSize) * gridSize;
+        int y = (getY() / gridSize) * gridSize;
 
         setTopLeftPosition(x, y);
 
-        // Límites de seguridad
         if (getX() < 0) setTopLeftPosition(0, getY());
         if (getY() < 0) setTopLeftPosition(getX(), 0);
-}
+    }
 
+    // =========================
+    // PAINT
+    // =========================
     void paint(juce::Graphics& g) override
     {
-        // Fondo semitransparente para ver el área de agarre
         g.fillAll(juce::Colours::white.withAlpha(0.05f));
-        
-        // Borde indicador de selección
+
         if (isSelected)
         {
-            g.setColour(juce::Colours::lightgreen); // Verde si está seleccionado
-            g.drawRect(getLocalBounds(), 2);        // Borde más grueso
+            g.setColour(juce::Colours::lightgreen);
+            g.drawRect(getLocalBounds(), 2);
         }
         else
         {
-            g.setColour(juce::Colours::orange.withAlpha(0.5f)); // Naranja tenue si no
+            g.setColour(juce::Colours::orange.withAlpha(0.5f));
             g.drawRect(getLocalBounds(), 1);
         }
+
+        // DEBUG VISUAL 
+        juce::String roleText;
+
+        switch (role)
+        {
+            case PluginData::ParamRole::Gain: roleText = "Gain"; break;
+            case PluginData::ParamRole::Drive: roleText = "Drive"; break;
+            case PluginData::ParamRole::Mix: roleText = "Mix"; break;
+            case PluginData::ParamRole::Tone: roleText = "Tone"; break;
+            case PluginData::ParamRole::Frequency: roleText = "Freq"; break;
+            case PluginData::ParamRole::Depth: roleText = "Depth"; break;
+            default: roleText = "None"; break;
+        }
+
+        g.setColour(juce::Colours::white.withAlpha(0.6f));
+        g.setFont(10.0f);
+        g.drawText(roleText, getLocalBounds().removeFromBottom(15),
+                   juce::Justification::centred);
     }
 
     void resized() override
@@ -161,17 +180,19 @@ public:
 private:
     PluginData::ComponentType componentType;
     int componentIndex;
-    
-    // Datos Lógicos (Modelo)
+
+    // DATOS
     juce::String compName;
     juce::String compSymbol;
     float minVal, maxVal, defVal;
     bool isSelected = false;
 
-    // Componentes Visuales (Vista)
+    PluginData::ParamRole role = PluginData::ParamRole::None;
+
+    // UI
     std::unique_ptr<juce::Slider> slider;
     std::unique_ptr<juce::ToggleButton> toggle;
     juce::Label label;
-    
-    juce::ComponentDragger dragger; 
+
+    juce::ComponentDragger dragger;
 };

@@ -1,7 +1,7 @@
 /*
   ==============================================================================
     Source/Core/PluginGenerator.cpp
-    (VERSIÓN PRO: Mapeo por nombre de parámetros)
+    (VERSIÓN MEDIO FINAL: Mapeo por ParamRole)
   ==============================================================================
 */
 
@@ -75,7 +75,7 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
     }
 
     // ================================
-    // 3. MAPEO POR NOMBRE
+    // 3. MAPEO POR ROLE 
     // ================================
 
     int driveParam = -1;
@@ -88,15 +88,16 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
 
     for (int i = 0; i < project.components.size(); ++i)
     {
-        auto name = project.components[i].name.toLowerCase();
+        const auto& comp = project.components[i];
 
-        if (name.contains("drive")) driveParam = i;
-        else if (name.contains("mix")) mixParam = i;
-        else if (name.contains("tone")) toneParam = i;
-        else if (name.contains("gain")) gainParam = i;
-        else if (name.contains("freq")) freqParam = i;
-        else if (name.contains("depth")) depthParam = i;
-        else if (project.components[i].type == PluginData::ComponentType::Toggle && toggleParam == -1)
+        if (comp.role == PluginData::ParamRole::Drive) driveParam = i;
+        else if (comp.role == PluginData::ParamRole::Mix) mixParam = i;
+        else if (comp.role == PluginData::ParamRole::Tone) toneParam = i;
+        else if (comp.role == PluginData::ParamRole::Gain) gainParam = i;
+        else if (comp.role == PluginData::ParamRole::Frequency) freqParam = i;
+        else if (comp.role == PluginData::ParamRole::Depth) depthParam = i;
+
+        if (comp.type == PluginData::ComponentType::Toggle && toggleParam == -1)
             toggleParam = i;
     }
 
@@ -228,39 +229,29 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
     sourceDir.getChildFile("PluginProcessor.cpp").replaceWithText(processorContent);
     sourceDir.getChildFile("PluginEditor.h").replaceWithText(Templates::editorHeader);
     sourceDir.getChildFile("PluginEditor.cpp").replaceWithText(editorContent);
-
 }
 
-
-    // ==============================================================================
-// AUTOMATIZACIÓN DE COMPILACIÓN E INSTALACIÓN
 // ==============================================================================
-
+// COMPILAR E INSTALAR
+// ==============================================================================
 juce::String PluginGenerator::compileAndInstallPlugin(const PluginData::Project& project)
 {
     juce::String safeName = "";
-    for (auto c : project.pluginName) {
-        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+    for (auto c : project.pluginName)
+        if (juce::CharacterFunctions::isLetter(c))
             safeName += c;
-        }
-    }
+
     if (safeName.isEmpty()) safeName = "MiEfectoDSP";
 
-    juce::String bashCommands = 
+    juce::String cmd =
         "cd \"" + desktopDir.getFullPathName() + "\" && "
-        "mkdir -p build && "
-        "cd build && "
-        "cmake .. && "
-        "cmake --build . -j4 && "
+        "mkdir -p build && cd build && "
+        "cmake .. && cmake --build . -j4 && "
         "rm -rf ~/.lv2/" + safeName + ".lv2 && "
         "mkdir -p ~/.lv2/" + safeName + ".lv2 && "
         "cp MiEfectoDSP.so manifest.ttl plugin.ttl ~/.lv2/" + safeName + ".lv2/";
 
-    int result = system(bashCommands.toRawUTF8());
-
-    if (result == 0) {
-        return "OK:" + safeName;
-    } else {
-        return "ERROR: Revisa la terminal donde lanzaste el IDE para ver qué falló.";
-    }
+    return (system(cmd.toRawUTF8()) == 0)
+        ? "OK:" + safeName
+        : "ERROR: fallo en compilación";
 }
