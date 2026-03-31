@@ -1,9 +1,3 @@
-/*
-  ==============================================================================
-    Source/Core/PropertiesPanel.h
-    (FIX VISIBILIDAD + ParamRole)
-  ==============================================================================
-*/
 #pragma once
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "VisualElement.h"
@@ -32,15 +26,7 @@ public:
         // --- ROLE ---
         roleLabel.setText("Tipo:", juce::dontSendNotification);
         addAndMakeVisible(roleLabel);
-
         addAndMakeVisible(roleCombo);
-        roleCombo.addItem("None", 1);
-        roleCombo.addItem("Gain", 2);
-        roleCombo.addItem("Drive", 3);
-        roleCombo.addItem("Mix", 4);
-        roleCombo.addItem("Tone", 5);
-        roleCombo.addItem("Frequency", 6);
-        roleCombo.addItem("Depth", 7);
         roleCombo.addListener(this);
 
         // --- PROYECTO ---
@@ -75,9 +61,9 @@ public:
     void inspectElement(VisualElement* element)
     {
         currentElement = element;
-        currentProject = nullptr;
 
         updateVisibility();
+        updateRoleOptions();
 
         if (element)
         {
@@ -91,7 +77,6 @@ public:
                 minEditor.setText(juce::String(element->getMin()));
                 maxEditor.setText(juce::String(element->getMax()));
                 defEditor.setText(juce::String(element->getDef()));
-                roleCombo.setSelectedId((int)element->getRole() + 1, juce::dontSendNotification);
             }
         }
     }
@@ -102,6 +87,7 @@ public:
         currentElement = nullptr;
 
         updateVisibility();
+        updateRoleOptions();
 
         if (project)
         {
@@ -181,6 +167,75 @@ private:
     juce::Label algoLabel;
     juce::ComboBox algoCombo;
 
+    // ================================
+    // 🔥 NUEVO: FILTRO DE ROLES
+    // ================================
+    void updateRoleOptions()
+    {
+        roleCombo.clear();
+
+        if (!currentProject) return;
+
+        using namespace PluginData;
+
+        switch (currentProject->currentAlgorithm)
+        {
+            case AlgorithmType::Gain:
+                roleCombo.addItem("Gain", 1);
+                break;
+
+            case AlgorithmType::Distortion:
+                roleCombo.addItem("Drive", 1);
+                roleCombo.addItem("Mix", 2);
+                roleCombo.addItem("Tone", 3);
+                break;
+
+            case AlgorithmType::Tremolo:
+                roleCombo.addItem("Frequency", 1);
+                roleCombo.addItem("Depth", 2);
+                break;
+
+            default:
+                roleCombo.addItem("None", 1);
+                roleCombo.addItem("Gain", 2);
+                roleCombo.addItem("Drive", 3);
+                roleCombo.addItem("Mix", 4);
+                roleCombo.addItem("Tone", 5);
+                roleCombo.addItem("Frequency", 6);
+                roleCombo.addItem("Depth", 7);
+                break;
+        }
+    }
+
+    PluginData::ParamRole getRoleFromCombo(int id)
+    {
+        using namespace PluginData;
+
+        if (!currentProject) return ParamRole::None;
+
+        switch (currentProject->currentAlgorithm)
+        {
+            case AlgorithmType::Gain:
+                return ParamRole::Gain;
+
+            case AlgorithmType::Distortion:
+                if (id == 1) return ParamRole::Drive;
+                if (id == 2) return ParamRole::Mix;
+                if (id == 3) return ParamRole::Tone;
+                break;
+
+            case AlgorithmType::Tremolo:
+                if (id == 1) return ParamRole::Frequency;
+                if (id == 2) return ParamRole::Depth;
+                break;
+
+            default:
+                return (ParamRole)(id - 1);
+        }
+
+        return ParamRole::None;
+    }
+
     void addCompField(juce::Label& l, juce::TextEditor& e, const juce::String& t)
     {
         l.setText(t, juce::dontSendNotification);
@@ -208,16 +263,14 @@ private:
     void updateVisibility()
     {
         bool showComp = (currentElement != nullptr);
-        bool showProj = (currentProject != nullptr);
+        bool showProj = (!showComp && currentProject != nullptr);
         bool slider = isSliderLike();
 
-        // COMPONENTE
         compNameLabel.setVisible(showComp);
         compNameEditor.setVisible(showComp);
         compIDLabel.setVisible(showComp);
         compIDEditor.setVisible(showComp);
 
-        // SOLO SLIDER
         minLabel.setVisible(showComp && slider);
         minEditor.setVisible(showComp && slider);
         maxLabel.setVisible(showComp && slider);
@@ -227,7 +280,6 @@ private:
         roleLabel.setVisible(showComp && slider);
         roleCombo.setVisible(showComp && slider);
 
-        // PROYECTO
         projNameLabel.setVisible(showProj);
         projNameEditor.setVisible(showProj);
         projManufLabel.setVisible(showProj);
@@ -261,7 +313,7 @@ private:
 
                 int roleId = roleCombo.getSelectedId();
                 if (roleId > 0)
-                    currentElement->setRole((PluginData::ParamRole)(roleId - 1));
+                    currentElement->setRole(getRoleFromCombo(roleId));
             }
 
             if (onDataChanged) onDataChanged();
@@ -279,8 +331,12 @@ private:
                 currentProject->numOutputs = outputsCombo.getSelectedId();
 
             if (algoCombo.getSelectedId() > 0)
+            {
                 currentProject->currentAlgorithm =
                     (PluginData::AlgorithmType)(algoCombo.getSelectedId() - 1);
+
+                updateRoleOptions();
+            }
         }
     }
 };
