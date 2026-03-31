@@ -49,6 +49,12 @@ namespace PluginData
         juce::String pluginName = "Mi Plugin Nuevo";
         juce::String manufacturer = "Mi Nombre";
         juce::String pluginURI = "http://miweb.com/plugins/miplugin";
+        //Nuevo-> codigo de inicalizcinon
+        juce::String initCode;
+        Project()
+        {
+            initCode = "// Código de inicialización\n";
+        }
         
         AlgorithmType currentAlgorithm = AlgorithmType::Gain; 
 

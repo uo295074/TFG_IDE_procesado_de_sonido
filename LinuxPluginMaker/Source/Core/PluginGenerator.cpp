@@ -222,7 +222,14 @@ void PluginGenerator::createPluginFiles(PluginData::Project& project)
     editorContent = editorContent.replace("{{NUM_PARAMS}}", juce::String(project.components.size()));
 
     juce::String processorContent = Templates::processorCpp;
-    processorContent = processorContent.replace("{{DSP_CODE}}", dspCode);
+    if (processorContent.contains("{{DSP_CODE}}"))
+        processorContent = processorContent.replace("{{DSP_CODE}}", dspCode);
+    else
+        processorContent = processorContent.replace("// INSERT_DSP_HERE", dspCode);
+
+    // INIT
+    if (processorContent.contains("{{INIT_CODE}}"))
+        processorContent = processorContent.replace("{{INIT_CODE}}", project.initCode);
 
     desktopDir.getChildFile("CMakeLists.txt").replaceWithText(cmakeContent);
     sourceDir.getChildFile("PluginProcessor.h").replaceWithText(Templates::processorHeader);

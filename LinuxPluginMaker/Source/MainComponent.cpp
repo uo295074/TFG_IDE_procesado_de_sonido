@@ -11,6 +11,7 @@
 enum MenuIDs {
     FileNew = 1, FileLoad, FileSave, FileExit,
     ProjectProps, ProjectGenerate, ProjectCodeEditor,
+    ProjectInitEditor,
     ProjectExportSource,   // NUEVO
     HelpAbout
 };
@@ -160,7 +161,8 @@ juce::PopupMenu MainComponent::getMenuForIndex(int topLevelMenuIndex, const juce
     {
         // AQUÍ ESTÁ LO QUE PEDÍAS: Cambiar datos desde el menú
         menu.addItem(ProjectProps, "Propiedades del Plugin...");
-        menu.addItem(ProjectCodeEditor, "Editor de Código DSP..."); 
+        menu.addItem(ProjectCodeEditor, "Editor de Código DSP...");
+        menu.addItem(ProjectInitEditor, "Editor de Inicialización...");
         menu.addSeparator();
         menu.addItem(ProjectGenerate, "Generar Código C++");
         menu.addItem(ProjectExportSource, "Exportar código fuente...");
@@ -236,12 +238,29 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex)
         // --- NUEVO CASO: ABRIR EL EDITOR MODAL ---
         case ProjectCodeEditor:
         {
-            auto* editorPanel = new CodeEditorPanel(project);
+            auto* editorPanel = new CodeEditorPanel(project.customDspCode);
             
             juce::DialogWindow::LaunchOptions options;
             options.content.setOwned(editorPanel);
             options.content->setSize(700, 500);
             options.dialogTitle = "Editor de Código C++ Personalizado";
+            options.dialogBackgroundColour = juce::Colours::darkgrey;
+            options.escapeKeyTriggersCloseButton = true;
+            options.useNativeTitleBar = true;
+            options.resizable = true;
+
+            options.launchAsync();
+            break;
+        }
+
+        case ProjectInitEditor:
+        {
+            auto* editorPanel = new CodeEditorPanel(project.initCode);
+
+            juce::DialogWindow::LaunchOptions options;
+            options.content.setOwned(editorPanel);
+            options.content->setSize(700, 500);
+            options.dialogTitle = "Editor de Código de Inicialización";
             options.dialogBackgroundColour = juce::Colours::darkgrey;
             options.escapeKeyTriggersCloseButton = true;
             options.useNativeTitleBar = true;

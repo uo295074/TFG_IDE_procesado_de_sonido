@@ -53,6 +53,7 @@ void DspEngine::prepare(double sampleRate, int samplesPerBlock)
 {
     currentSampleRate = sampleRate;
     currentBlockSize = samplesPerBlock;
+    {{INIT_CODE}}
 }
 
 void DspEngine::process(float* const* inputChannelData, float* const* outputChannelData, 
