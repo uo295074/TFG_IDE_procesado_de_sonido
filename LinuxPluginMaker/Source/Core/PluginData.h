@@ -1,246 +1,222 @@
-/*
-  ==============================================================================
-    Source/Core/PluginData.h
-    Actualizado con soporte para Código DSP Personalizado
-  ==============================================================================
-*/
 #pragma once
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <vector>
 
-namespace PluginData
-{
-    // 1. DEFINIMOS LOS TIPOS DE EFECTO DISPONIBLES
-    enum class AlgorithmType 
-    { 
-        Gain,       
-        Distortion, 
-        Tremolo,     
-        Custom      
-    };
+namespace PluginData {
 
-    enum class ComponentType { Slider, Toggle, Knob };
+// ================================
+// ENUMS (mantengo por compatibilidad)
+// ================================
+enum class AlgorithmType { Gain, Distortion, Tremolo, Custom };
+enum class ComponentType { Slider, Toggle, Knob };
 
-    enum class ParamRole
-    {
-        None,
-        Gain,
-        Drive,
-        Mix,
-        Tone,
-        Frequency,
-        Depth
-    };
+// ⚠️ LEGACY (se eliminará en el futuro)
+enum class ParamRole { None, Gain, Drive, Mix, Tone, Frequency, Depth };
 
-    struct Component
-    {
-        int index;
-        ComponentType type;
-        juce::String name;
-        juce::String symbol;
-        ParamRole role = ParamRole::None;
-        float min = 0.0f;
-        float max = 1.0f;
-        float def = 0.5f;
-    };
+// ================================
+// 🔥 NUEVO SISTEMA DINÁMICO
+// ================================
+struct EffectParam {
+  juce::String name;
+};
 
-    struct Project
-    {
-        juce::String pluginName = "Mi Plugin Nuevo";
-        juce::String manufacturer = "Mi Nombre";
-        juce::String pluginURI = "http://miweb.com/plugins/miplugin";
-        //Nuevo-> codigo de inicalizcinon
-        juce::String initCode;
-        Project()
-        {
-            initCode = "// Código de inicialización\n";
-        }
-        
-        AlgorithmType currentAlgorithm = AlgorithmType::Gain; 
+struct EffectDefinition {
+  juce::String name;
+  std::vector<EffectParam> params;
+};
 
-        int numInputs = 2;  
-        int numOutputs = 2; 
+// ================================
+// COMPONENTE
+// ================================
+struct Component {
+  int index;
+  ComponentType type;
 
-        // --- NUEVO: Variable para guardar el código del usuario ---
-        // Le ponemos un texto por defecto para guiar al técnico
-        juce::String customDspCode = 
-            "// --- TU CÓDIGO DSP AQUÍ ---\n"
-            "// Usa 'channelData[sample]' para leer/escribir el audio.\n"
-            "// Usa 'params[0]', 'params[1]', etc., para leer tus controles.\n\n"
-            "for (int channel = 0; channel < totalNumInputChannels; ++channel)\n"
-            "{\n"
-            "    auto* channelData = buffer.getWritePointer (channel);\n"
-            "    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)\n"
-            "    {\n"
-            "        // Ejemplo: channelData[sample] *= params[0];\n"
-            "    }\n"
-            "}\n";
-        // ----------------------------------------------------------
+  juce::String name;
+  juce::String symbol;
 
-        std::vector<Component> components;
+  // ⚠️ LEGACY (no lo usamos ya)
+  ParamRole role = ParamRole::None;
 
-        void addSlider(const juce::String& n, float mn, float mx, float df) {
-            Component c; c.type = ComponentType::Slider; c.name = n; 
-            c.min = mn; c.max = mx; c.def = df; c.index = components.size();
-            components.push_back(c);
-        }
+  // 🔥 NUEVO (IMPORTANTE)
+  juce::String paramName;
 
-        void addKnob(const juce::String& n, float mn, float mx, float df) {
-            Component c; c.type = ComponentType::Knob; c.name = n; 
-            c.min = mn; c.max = mx; c.def = df; c.index = components.size();
-            components.push_back(c);
-        }
+  float min = 0.0f;
+  float max = 1.0f;
+  float def = 0.5f;
+};
 
-        std::unique_ptr<juce::XmlElement> toXml() const
-        {
-            auto xml = std::make_unique<juce::XmlElement>("LINUX_PLUGIN_MAKER_PROJECT");
-            xml->setAttribute("name", pluginName);
-            xml->setAttribute("manufacturer", manufacturer);
-            xml->setAttribute("uri", pluginURI);
-            xml->setAttribute("algorithm", (int)currentAlgorithm);
-            xml->setAttribute("numInputs", numInputs);
-            xml->setAttribute("numOutputs", numOutputs);
+// ================================
+// PROYECTO
+// ================================
+struct Project {
+  // 🔥 EFECTOS DINÁMICOS DESDE XML
+  std::vector<EffectDefinition> availableEffects;
+  int currentEffectIndex = 0;
 
-            // --- NUEVO: Guardar el código C++ en el XML ---
-            auto dspXml = new juce::XmlElement("CUSTOM_DSP");
-            dspXml->addTextElement(customDspCode);
-            xml->addChildElement(dspXml);
-            // ----------------------------------------------
+  juce::String pluginName = "Mi Plugin Nuevo";
+  juce::String manufacturer = "Mi Nombre";
+  juce::String pluginURI = "http://miweb.com/plugins/miplugin";
 
-            auto compsXml = new juce::XmlElement("COMPONENTS");
-            for (const auto& comp : components) {
-                auto cXml = new juce::XmlElement("COMPONENT");
-                cXml->setAttribute("index", comp.index);
-                cXml->setAttribute("type", (int)comp.type);
-                cXml->setAttribute("name", comp.name);
-                cXml->setAttribute("symbol", comp.symbol);
-                cXml->setAttribute("min", comp.min);
-                cXml->setAttribute("max", comp.max);
-                cXml->setAttribute("def", comp.def);
-                cXml->setAttribute("role", (int)comp.role);
-                compsXml->addChildElement(cXml);
-            }
-            xml->addChildElement(compsXml); 
-            return xml;
-        }
+  // Código de inicialización
+  juce::String initCode;
 
-        void fromXml(juce::XmlElement* xml)
-        {
-            if (xml == nullptr || xml->getTagName() != "LINUX_PLUGIN_MAKER_PROJECT") return;
+  // ⚠️ LEGACY (mantener por ahora)
+  AlgorithmType currentAlgorithm = AlgorithmType::Gain;
 
-            pluginName = xml->getStringAttribute("name", "Mi Plugin Nuevo");
-            manufacturer = xml->getStringAttribute("manufacturer", "Mi Nombre");
-            pluginURI = xml->getStringAttribute("uri", "http://miweb.com/plugins/miplugin");
-            currentAlgorithm = (AlgorithmType)xml->getIntAttribute("algorithm", 0);
-            numInputs = xml->getIntAttribute("numInputs", 2);
-            numOutputs = xml->getIntAttribute("numOutputs", 2);
+  int numInputs = 2;
+  int numOutputs = 2;
 
-            // --- NUEVO: Leer el código C++ desde el XML ---
-            if (auto* dspXml = xml->getChildByName("CUSTOM_DSP")) {
-                customDspCode = dspXml->getAllSubText();
-            }
-            // ----------------------------------------------
+  // Código DSP usuario
+  juce::String customDspCode =
+      "// --- TU CÓDIGO DSP AQUÍ ---\n"
+      "for (int channel = 0; channel < totalNumInputChannels; ++channel)\n"
+      "{\n"
+      "    auto* channelData = buffer.getWritePointer (channel);\n"
+      "    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)\n"
+      "    {\n"
+      "        // Ejemplo: channelData[sample] *= params[0];\n"
+      "    }\n"
+      "}\n";
 
-            components.clear();
-            if (auto* compsXml = xml->getChildByName("COMPONENTS")) {
-                for (auto* cXml : compsXml->getChildIterator()) {
-                    Component c;
-                    c.index = cXml->getIntAttribute("index");
-                    c.type = (ComponentType)cXml->getIntAttribute("type");
-                    c.name = cXml->getStringAttribute("name");
-                    c.symbol = cXml->getStringAttribute("symbol");
-                    c.min = cXml->getDoubleAttribute("min", 0.0);
-                    c.max = cXml->getDoubleAttribute("max", 1.0);
-                    c.def = cXml->getDoubleAttribute("def", 0.5);
-                    c.role = (ParamRole)cXml->getIntAttribute("role", 0);
-                    components.push_back(c);
-                }
-            }
-        }
-    };
-    
-    static juce::String getAlgorithmName(AlgorithmType type)
-    {
-        switch (type)
-        {
-            case AlgorithmType::Gain:       return "Control de Ganancia (Básico)";
-            case AlgorithmType::Distortion: return "Distorsión (Saturación)";
-            case AlgorithmType::Tremolo:    return "Trémolo (Modulación AM)";
-            case AlgorithmType::Custom:     return "C++ Personalizado (Avanzado)"; 
-            default: return "Desconocido";
-        }
+  std::vector<Component> components;
+
+  Project() { initCode = "// Código de inicialización\n"; }
+
+  // ================================
+  // XML EXPORT
+  // ================================
+  std::unique_ptr<juce::XmlElement> toXml() const {
+    auto xml = std::make_unique<juce::XmlElement>("LINUX_PLUGIN_MAKER_PROJECT");
+
+    xml->setAttribute("name", pluginName);
+    xml->setAttribute("manufacturer", manufacturer);
+    xml->setAttribute("uri", pluginURI);
+    xml->setAttribute("algorithm", (int)currentAlgorithm);
+    xml->setAttribute("numInputs", numInputs);
+    xml->setAttribute("numOutputs", numOutputs);
+
+    // DSP CODE
+    auto dspXml = new juce::XmlElement("CUSTOM_DSP");
+    dspXml->addTextElement(customDspCode);
+    xml->addChildElement(dspXml);
+
+    // INIT CODE
+    auto initXml = new juce::XmlElement("INIT_CODE");
+    initXml->addTextElement(initCode);
+    xml->addChildElement(initXml);
+
+    // COMPONENTS
+    auto compsXml = new juce::XmlElement("COMPONENTS");
+
+    for (const auto &comp : components) {
+      auto cXml = new juce::XmlElement("COMPONENT");
+
+      cXml->setAttribute("index", comp.index);
+      cXml->setAttribute("type", (int)comp.type);
+      cXml->setAttribute("name", comp.name);
+      cXml->setAttribute("symbol", comp.symbol);
+
+      cXml->setAttribute("min", comp.min);
+      cXml->setAttribute("max", comp.max);
+      cXml->setAttribute("def", comp.def);
+
+      // ⚠️ legacy
+      cXml->setAttribute("role", (int)comp.role);
+
+      // 🔥 NUEVO
+      cXml->setAttribute("paramName", comp.paramName);
+
+      compsXml->addChildElement(cXml);
     }
 
-    static juce::String getDefaultDSPCode(AlgorithmType type)
-{
-    switch (type)
-    {
-        case AlgorithmType::Distortion:
-            return R"(
-float drive = 1.0f;
-if (params.size() > 0) drive = params[0];
+    xml->addChildElement(compsXml);
 
-drive = 1.0f + (drive * 10.0f);
+    return xml;
+  }
 
-for (int channel = 0; channel < totalNumInputChannels; ++channel)
-{
-    auto* channelData = buffer.getWritePointer(channel);
+  // ================================
+  // XML IMPORT
+  // ================================
+  void fromXml(juce::XmlElement *xml) {
+    if (!xml || xml->getTagName() != "LINUX_PLUGIN_MAKER_PROJECT")
+      return;
 
-    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
-    {
-        channelData[sample] = std::tanh(channelData[sample] * drive);
+    pluginName = xml->getStringAttribute("name", "Mi Plugin Nuevo");
+    manufacturer = xml->getStringAttribute("manufacturer", "Mi Nombre");
+    pluginURI = xml->getStringAttribute("uri", "");
+
+    currentAlgorithm = (AlgorithmType)xml->getIntAttribute("algorithm", 0);
+
+    numInputs = xml->getIntAttribute("numInputs", 2);
+    numOutputs = xml->getIntAttribute("numOutputs", 2);
+
+    // DSP
+    if (auto *dspXml = xml->getChildByName("CUSTOM_DSP"))
+      customDspCode = dspXml->getAllSubText();
+
+    // INIT
+    if (auto *initXml = xml->getChildByName("INIT_CODE"))
+      initCode = initXml->getAllSubText();
+
+    // COMPONENTS
+    components.clear();
+
+    if (auto *compsXml = xml->getChildByName("COMPONENTS")) {
+      for (auto *cXml : compsXml->getChildIterator()) {
+        Component c;
+
+        c.index = cXml->getIntAttribute("index");
+        c.type = (ComponentType)cXml->getIntAttribute("type");
+
+        c.name = cXml->getStringAttribute("name");
+        c.symbol = cXml->getStringAttribute("symbol");
+
+        c.min = cXml->getDoubleAttribute("min", 0.0);
+        c.max = cXml->getDoubleAttribute("max", 1.0);
+        c.def = cXml->getDoubleAttribute("def", 0.5);
+
+        // legacy
+        c.role = (ParamRole)cXml->getIntAttribute("role", 0);
+
+        // 🔥 NUEVO
+        c.paramName = cXml->getStringAttribute("paramName", "");
+
+        components.push_back(c);
+      }
     }
-}
-)";
+  }
+};
 
-        case AlgorithmType::Tremolo:
-            return R"(
-float freq = 1.0f;
-float depth = 0.5f;
+// ================================
+// 🔥 CARGAR EFECTOS DESDE XML
+// ================================
+static std::vector<EffectDefinition>
+loadEffectsFromXML(const juce::File &file) {
+  std::vector<EffectDefinition> effects;
 
-if (params.size() > 0) freq = params[0];
-if (params.size() > 1) depth = params[1];
+  juce::XmlDocument xmlDoc(file);
 
-static float currentPhase = 0.0f;
-float sampleRate = getSampleRate();
-float phaseIncrement = (freq * 2.0f * juce::MathConstants<float>::pi) / sampleRate;
+  if (auto xml = xmlDoc.getDocumentElement()) {
+    forEachXmlChildElement(*xml, effectXml) {
+      if (effectXml->hasTagName("effect")) {
+        EffectDefinition effect;
+        effect.name = effectXml->getStringAttribute("name");
 
-for (int channel = 0; channel < totalNumInputChannels; ++channel)
-{
-    auto* channelData = buffer.getWritePointer(channel);
-    float phase = currentPhase;
+        forEachXmlChildElement(*effectXml, paramXml) {
+          if (paramXml->hasTagName("param")) {
+            EffectParam p;
+            p.name = paramXml->getStringAttribute("name");
+            effect.params.push_back(p);
+          }
+        }
 
-    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
-    {
-        float lfo = 1.0f - (depth * 0.5f * (1.0f + std::sin(phase)));
-        channelData[sample] *= lfo;
-
-        phase += phaseIncrement;
-        if (phase >= 2.0f * juce::MathConstants<float>::pi)
-            phase -= 2.0f * juce::MathConstants<float>::pi;
+        effects.push_back(effect);
+      }
     }
+  }
 
-    if (channel == totalNumInputChannels - 1)
-        currentPhase = phase;
+  return effects;
 }
-)";
 
-        case AlgorithmType::Gain:
-        default:
-            return R"(
-float gain = 1.0f;
-if (params.size() > 0) gain = params[0];
-
-for (int channel = 0; channel < totalNumInputChannels; ++channel)
-{
-    auto* channelData = buffer.getWritePointer(channel);
-
-    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
-    {
-        channelData[sample] *= gain;
-    }
-}
-)";
-    }
-}
-}
+} // namespace PluginData

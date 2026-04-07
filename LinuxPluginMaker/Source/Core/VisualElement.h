@@ -1,198 +1,196 @@
-/*
-  ==============================================================================
-    Source/Core/VisualElement.h
-    Representa un componente visual en el canvas.
-    (VERSIÓN PRO: soporte ParamRole)
-  ==============================================================================
-*/
 #pragma once
-#include <juce_gui_basics/juce_gui_basics.h>
 #include "PluginData.h"
+#include <juce_gui_basics/juce_gui_basics.h>
 
-class VisualElement : public juce::Component
-{
+class VisualElement : public juce::Component {
 public:
-    std::function<void()> onClick;
+  std::function<void()> onClick;
 
-    VisualElement(PluginData::ComponentType type, int index, const juce::String& name)
-        : componentType(type), componentIndex(index)
-    {
-        setOpaque(false);
+  VisualElement(PluginData::ComponentType type, int index,
+                const juce::String &name)
+      : componentType(type), componentIndex(index) {
+    setOpaque(false);
 
-        // --- DATOS ---
-        compName = name;
-        compSymbol = (type == PluginData::ComponentType::Slider ? "control" : "switch") + juce::String(index);
+    // --- DATOS ---
+    compName = name;
 
-        // NUEVO: ROLE
-        role = PluginData::ParamRole::None;
+    compSymbol =
+        (type == PluginData::ComponentType::Slider ? "control" : "switch") +
+        juce::String(index);
 
-        if (type == PluginData::ComponentType::Slider) {
-            minVal = 0.0f; maxVal = 1.0f; defVal = 0.5f;
-        } else {
-            minVal = 0.0f; maxVal = 1.0f; defVal = 0.0f;
-        }
+    // 🔥 NUEVO
+    paramName = "None";
 
-        // --- UI ---
-        if (type == PluginData::ComponentType::Slider || type == PluginData::ComponentType::Knob)
-        {
-            slider.reset(new juce::Slider());
+    // ⚠️ LEGACY
+    role = PluginData::ParamRole::None;
 
-            if (type == PluginData::ComponentType::Slider)
-                slider->setSliderStyle(juce::Slider::LinearVertical);
-            else
-                slider->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-
-            slider->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
-            slider->setInterceptsMouseClicks(false, false);
-
-            addAndMakeVisible(slider.get());
-
-            label.setText(name, juce::dontSendNotification);
-            label.setJustificationType(juce::Justification::centred);
-            label.attachToComponent(slider.get(), false);
-
-            setSize(80, 100);
-        }
-        else if (type == PluginData::ComponentType::Toggle)
-        {
-            toggle.reset(new juce::ToggleButton(name));
-            toggle->setInterceptsMouseClicks(false, false);
-
-            addAndMakeVisible(toggle.get());
-            setSize(100, 30);
-        }
+    if (type == PluginData::ComponentType::Slider) {
+      minVal = 0.0f;
+      maxVal = 1.0f;
+      defVal = 0.5f;
+    } else {
+      minVal = 0.0f;
+      maxVal = 1.0f;
+      defVal = 0.0f;
     }
 
-    // =========================
-    // GETTERS / SETTERS
-    // =========================
+    // --- UI ---
+    if (type == PluginData::ComponentType::Slider ||
+        type == PluginData::ComponentType::Knob) {
+      slider.reset(new juce::Slider());
 
-    void setName(const juce::String& n)
-    {
-        compName = n;
-        label.setText(n, juce::dontSendNotification);
-        if (toggle) toggle->setButtonText(n);
-        repaint();
+      if (type == PluginData::ComponentType::Slider)
+        slider->setSliderStyle(juce::Slider::LinearVertical);
+      else
+        slider->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+
+      slider->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
+      slider->setInterceptsMouseClicks(false, false);
+
+      addAndMakeVisible(slider.get());
+
+      label.setText(name, juce::dontSendNotification);
+      label.setJustificationType(juce::Justification::centred);
+      label.attachToComponent(slider.get(), false);
+
+      setSize(80, 100);
+    } else if (type == PluginData::ComponentType::Toggle) {
+      toggle.reset(new juce::ToggleButton(name));
+      toggle->setInterceptsMouseClicks(false, false);
+
+      addAndMakeVisible(toggle.get());
+      setSize(100, 30);
     }
-    juce::String getName() const { return compName; }
+  }
 
-    void setSymbol(const juce::String& s) { compSymbol = s; }
-    juce::String getSymbol() const { return compSymbol; }
+  // =========================
+  // GETTERS / SETTERS
+  // =========================
 
-    void setRange(float mn, float mx, float df)
-    {
-        minVal = mn; maxVal = mx; defVal = df;
-    }
-    float getMin() const { return minVal; }
-    float getMax() const { return maxVal; }
-    float getDef() const { return defVal; }
+  void setName(const juce::String &n) {
+    compName = n;
+    label.setText(n, juce::dontSendNotification);
+    if (toggle)
+      toggle->setButtonText(n);
+    repaint();
+  }
+  juce::String getName() const { return compName; }
 
-    // =========================
-    // NUEVO: ROLE
-    // =========================
-    void setRole(PluginData::ParamRole r) { role = r; }
-    PluginData::ParamRole getRole() const { return role; }
+  void setSymbol(const juce::String &s) { compSymbol = s; }
+  juce::String getSymbol() const { return compSymbol; }
 
-    // =========================
-    // SELECCIÓN
-    // =========================
-    void setSelected(bool shouldBeSelected)
-    {
-        isSelected = shouldBeSelected;
-        repaint();
-    }
-    bool getSelected() const { return isSelected; }
+  void setRange(float mn, float mx, float df) {
+    minVal = mn;
+    maxVal = mx;
+    defVal = df;
+  }
+  float getMin() const { return minVal; }
+  float getMax() const { return maxVal; }
+  float getDef() const { return defVal; }
 
-    // =========================
-    // MOUSE
-    // =========================
-    void mouseDown(const juce::MouseEvent& e) override
-    {
-        if (onClick) onClick();
+  // =========================
+  // 🔥 NUEVO: PARAM NAME
+  // =========================
+  void setParamName(const juce::String &name) {
+    paramName = name;
+    repaint();
+  }
+  juce::String getParamName() const { return paramName; }
 
-        dragger.startDraggingComponent(this, e);
-        toFront(true);
-        repaint();
-    }
+  // =========================
+  // ⚠️ LEGACY (no usar ya)
+  // =========================
+  void setRole(PluginData::ParamRole r) { role = r; }
+  PluginData::ParamRole getRole() const { return role; }
 
-    void mouseDrag(const juce::MouseEvent& e) override
-    {
-        dragger.dragComponent(this, e, nullptr);
+  // =========================
+  // SELECCIÓN
+  // =========================
+  void setSelected(bool shouldBeSelected) {
+    isSelected = shouldBeSelected;
+    repaint();
+  }
+  bool getSelected() const { return isSelected; }
 
-        const int gridSize = 20;
+  // =========================
+  // MOUSE
+  // =========================
+  void mouseDown(const juce::MouseEvent &e) override {
+    if (onClick)
+      onClick();
 
-        int x = (getX() / gridSize) * gridSize;
-        int y = (getY() / gridSize) * gridSize;
+    dragger.startDraggingComponent(this, e);
+    toFront(true);
+    repaint();
+  }
 
-        setTopLeftPosition(x, y);
+  void mouseDrag(const juce::MouseEvent &e) override {
+    dragger.dragComponent(this, e, nullptr);
 
-        if (getX() < 0) setTopLeftPosition(0, getY());
-        if (getY() < 0) setTopLeftPosition(getX(), 0);
-    }
+    const int gridSize = 20;
 
-    // =========================
-    // PAINT
-    // =========================
-    void paint(juce::Graphics& g) override
-    {
-        g.fillAll(juce::Colours::white.withAlpha(0.05f));
+    int x = (getX() / gridSize) * gridSize;
+    int y = (getY() / gridSize) * gridSize;
 
-        if (isSelected)
-        {
-            g.setColour(juce::Colours::lightgreen);
-            g.drawRect(getLocalBounds(), 2);
-        }
-        else
-        {
-            g.setColour(juce::Colours::orange.withAlpha(0.5f));
-            g.drawRect(getLocalBounds(), 1);
-        }
+    setTopLeftPosition(x, y);
 
-        // DEBUG VISUAL 
-        juce::String roleText;
+    if (getX() < 0)
+      setTopLeftPosition(0, getY());
+    if (getY() < 0)
+      setTopLeftPosition(getX(), 0);
+  }
 
-        switch (role)
-        {
-            case PluginData::ParamRole::Gain: roleText = "Gain"; break;
-            case PluginData::ParamRole::Drive: roleText = "Drive"; break;
-            case PluginData::ParamRole::Mix: roleText = "Mix"; break;
-            case PluginData::ParamRole::Tone: roleText = "Tone"; break;
-            case PluginData::ParamRole::Frequency: roleText = "Freq"; break;
-            case PluginData::ParamRole::Depth: roleText = "Depth"; break;
-            default: roleText = "None"; break;
-        }
+  // =========================
+  // PAINT
+  // =========================
+  void paint(juce::Graphics &g) override {
+    g.fillAll(juce::Colours::white.withAlpha(0.05f));
 
-        g.setColour(juce::Colours::white.withAlpha(0.6f));
-        g.setFont(10.0f);
-        g.drawText(roleText, getLocalBounds().removeFromBottom(15),
-                   juce::Justification::centred);
-    }
-
-    void resized() override
-    {
-        if (slider) slider->setBounds(0, 20, getWidth(), getHeight() - 20);
-        if (toggle) toggle->setBounds(0, 0, getWidth(), getHeight());
+    if (isSelected) {
+      g.setColour(juce::Colours::lightgreen);
+      g.drawRect(getLocalBounds(), 2);
+    } else {
+      g.setColour(juce::Colours::orange.withAlpha(0.5f));
+      g.drawRect(getLocalBounds(), 1);
     }
 
-    PluginData::ComponentType getType() const { return componentType; }
-    int getIndex() const { return componentIndex; }
+    // 🔥 DEBUG VISUAL (AHORA DINÁMICO)
+    g.setColour(juce::Colours::white.withAlpha(0.7f));
+    g.setFont(10.0f);
+    g.drawText(paramName, getLocalBounds().removeFromBottom(15),
+               juce::Justification::centred);
+  }
+
+  void resized() override {
+    if (slider)
+      slider->setBounds(0, 20, getWidth(), getHeight() - 20);
+    if (toggle)
+      toggle->setBounds(0, 0, getWidth(), getHeight());
+  }
+
+  PluginData::ComponentType getType() const { return componentType; }
+  int getIndex() const { return componentIndex; }
 
 private:
-    PluginData::ComponentType componentType;
-    int componentIndex;
+  PluginData::ComponentType componentType;
+  int componentIndex;
 
-    // DATOS
-    juce::String compName;
-    juce::String compSymbol;
-    float minVal, maxVal, defVal;
-    bool isSelected = false;
+  // DATOS
+  juce::String compName;
+  juce::String compSymbol;
+  float minVal, maxVal, defVal;
+  bool isSelected = false;
 
-    PluginData::ParamRole role = PluginData::ParamRole::None;
+  // 🔥 NUEVO
+  juce::String paramName;
 
-    // UI
-    std::unique_ptr<juce::Slider> slider;
-    std::unique_ptr<juce::ToggleButton> toggle;
-    juce::Label label;
+  // ⚠️ LEGACY
+  PluginData::ParamRole role = PluginData::ParamRole::None;
 
-    juce::ComponentDragger dragger;
+  // UI
+  std::unique_ptr<juce::Slider> slider;
+  std::unique_ptr<juce::ToggleButton> toggle;
+  juce::Label label;
+
+  juce::ComponentDragger dragger;
 };
