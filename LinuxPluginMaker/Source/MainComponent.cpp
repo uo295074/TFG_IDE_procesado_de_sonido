@@ -120,6 +120,13 @@ MainComponent::MainComponent() : menuBar(this) {
       return;
     }
 
+    juce::String error;
+
+    if (!generator.validateProject(project, error)) {
+      juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon,
+                                             "Error en el proyecto", error);
+      return;
+    }
     generator.createPluginFiles(project);
 
     generateBtn.setButtonText("Compilando de fondo... ¡Espera!");

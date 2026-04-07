@@ -289,3 +289,57 @@ PluginGenerator::compileAndInstallPlugin(const PluginData::Project &project) {
   return (system(cmd.toRawUTF8()) == 0) ? "OK:" + safeName
                                         : "ERROR: fallo en compilación";
 }
+
+bool PluginGenerator::validateProject(const PluginData::Project &project,
+                                      juce::String &error) {
+  if (project.components.empty()) {
+    error = "Añade al menos un componente.";
+    return false;
+  }
+
+  // comprobar duplicados de símbolo
+  std::set<juce::String> symbols;
+
+  for (const auto &comp : project.components) {
+    if (symbols.count(comp.symbol)) {
+      error = "Hay IDs duplicados (symbol).";
+      return false;
+    }
+    symbols.insert(comp.symbol);
+  }
+
+  // comprobar parámetros según algoritmo
+  bool hasDrive = false;
+  bool hasMix = false;
+  bool hasGain = false;
+
+  for (const auto &comp : project.components) {
+    if (comp.role == PluginData::ParamRole::Drive)
+      hasDrive = true;
+    if (comp.role == PluginData::ParamRole::Mix)
+      hasMix = true;
+    if (comp.role == PluginData::ParamRole::Gain)
+      hasGain = true;
+  }
+
+  switch (project.currentAlgorithm) {
+  case PluginData::AlgorithmType::Distortion:
+    if (!hasDrive) {
+      error = "La distorsión necesita al menos un parámetro Drive.";
+      return false;
+    }
+    break;
+
+  case PluginData::AlgorithmType::Gain:
+    if (!hasGain) {
+      error = "El efecto Gain necesita un parámetro Gain.";
+      return false;
+    }
+    break;
+
+  default:
+    break;
+  }
+
+  return true;
+}
