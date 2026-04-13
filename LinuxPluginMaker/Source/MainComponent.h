@@ -31,7 +31,7 @@ private:
 
   // (El resto sigue igual)
   juce::Label toolsLabel{{}, "Herramientas"};
-  juce::Label listLabel{{}, "Lienzo de Diseño"};
+  juce::Label listLabel{{}, juce::String::fromUTF8("Lienzo de Diseño")};
 
   juce::TextButton addSliderBtn{"+ Slider"};
   juce::TextButton addToggleBtn{"+ Switch"};

@@ -116,8 +116,9 @@ MainComponent::MainComponent() : menuBar(this) {
 
     if (project.components.empty()) {
       juce::AlertWindow::showMessageBoxAsync(
-          juce::AlertWindow::WarningIcon, "Proyecto Vacío",
-          "Añade algún componente antes de generar.");
+          juce::AlertWindow::WarningIcon,
+          juce::String::fromUTF8("Proyecto Vacío"),
+          juce::String::fromUTF8("Añade algún componente antes de generar."));
       return;
     }
 
@@ -143,7 +144,8 @@ MainComponent::MainComponent() : menuBar(this) {
         if (result.startsWith("OK:")) {
           juce::String folderName = result.substring(3);
           juce::AlertWindow::showMessageBoxAsync(
-              juce::AlertWindow::InfoIcon, "¡Éxito Total!",
+              juce::AlertWindow::InfoIcon,
+              juce::String::fromUTF8("¡Éxito Total!"),
               "Plugin generado correctamente.\n\n"
               "~/.lv2/" +
                   folderName + ".lv2");
@@ -180,11 +182,14 @@ juce::PopupMenu MainComponent::getMenuForIndex(int topLevelMenuIndex,
   } else if (menuName == "Proyecto") {
     // AQUÍ ESTÁ LO QUE PEDÍAS: Cambiar datos desde el menú
     menu.addItem(ProjectProps, "Propiedades del Plugin...");
-    menu.addItem(ProjectCodeEditor, "Editor de Código DSP...");
-    menu.addItem(ProjectInitEditor, "Editor de Inicialización...");
+    menu.addItem(ProjectCodeEditor,
+                 juce::String::fromUTF8("Editor de Código DSP..."));
+    menu.addItem(ProjectInitEditor,
+                 juce::String::fromUTF8("Editor de Inicialización..."));
     menu.addSeparator();
-    menu.addItem(ProjectGenerate, "Generar Código C++");
-    menu.addItem(ProjectExportSource, "Exportar código fuente...");
+    menu.addItem(ProjectGenerate, juce::String::fromUTF8("Generar Código C++"));
+    menu.addItem(ProjectExportSource,
+                 juce::String::fromUTF8("Exportar código fuente..."));
   } else if (menuName == "Ayuda") {
     menu.addItem(HelpAbout, "Acerca de LinuxPluginMaker...");
   }
@@ -264,7 +269,8 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
     juce::DialogWindow::LaunchOptions options;
     options.content.setOwned(editorPanel);
     options.content->setSize(700, 500);
-    options.dialogTitle = "Editor de Código C++ Personalizado";
+    options.dialogTitle =
+        juce::String::fromUTF8("Editor de Código C++ Personalizado");
     options.dialogBackgroundColour = juce::Colours::darkgrey;
     options.escapeKeyTriggersCloseButton = true;
     options.useNativeTitleBar = true;
@@ -280,7 +286,8 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
     juce::DialogWindow::LaunchOptions options;
     options.content.setOwned(editorPanel);
     options.content->setSize(700, 500);
-    options.dialogTitle = "Editor de Código de Inicialización";
+    options.dialogTitle =
+        juce::String::fromUTF8("Editor de Código de Inicialización");
     options.dialogBackgroundColour = juce::Colours::darkgrey;
     options.escapeKeyTriggersCloseButton = true;
     options.useNativeTitleBar = true;
@@ -313,8 +320,10 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
             source.copyDirectoryTo(target.getChildFile("MiEfectoDSP"));
 
             juce::AlertWindow::showMessageBoxAsync(
-                juce::AlertWindow::InfoIcon, "Exportación completada",
-                "El código fuente se ha exportado correctamente.");
+                juce::AlertWindow::InfoIcon,
+                juce::String::fromUTF8("Exportación completada"),
+                juce::String::fromUTF8(
+                    "El código fuente se ha exportado correctamente."));
           }
         });
 
@@ -329,7 +338,8 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
   case HelpAbout:
     juce::AlertWindow::showMessageBoxAsync(
         juce::AlertWindow::InfoIcon, "Acerca de",
-        "TFG: Generador de Plugins LV2 para Linux.\nVersión 0.2");
+        juce::String::fromUTF8(
+            "TFG: Generador de Plugins LV2 para Linux.\nVersión 0.2"));
     break;
 
   default:

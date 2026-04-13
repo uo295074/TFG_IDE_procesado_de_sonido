@@ -17,31 +17,33 @@ public:
 
     addCompField(compNameLabel, compNameEditor, "Nombre:");
     addCompField(compIDLabel, compIDEditor, "ID (Symbol):");
-    addCompField(minLabel, minEditor, "Mínimo:");
-    addCompField(maxLabel, maxEditor, "Máximo:");
+    addCompField(minLabel, minEditor, juce::String::fromUTF8("Mínimo:"));
+    addCompField(maxLabel, maxEditor, juce::String::fromUTF8("Máximo:"));
     addCompField(defLabel, defEditor, "Defecto:");
 
-    roleLabel.setText("Parámetro:", juce::dontSendNotification);
+    roleLabel.setText(juce::String::fromUTF8("Parámetro:"),
+                      juce::dontSendNotification);
     addAndMakeVisible(roleLabel);
     addAndMakeVisible(roleCombo);
     roleCombo.addListener(this);
 
     addProjField(projNameLabel, projNameEditor, "Nombre Plugin:");
     addProjField(projManufLabel, projManufEditor, "Fabricante:");
-    addProjField(projURILabel, projURIEditor, "URI Único:");
+    addProjField(projURILabel, projURIEditor,
+                 juce::String::fromUTF8("URI Único:"));
 
     inputsLabel.setText("Entradas:", juce::dontSendNotification);
     addAndMakeVisible(inputsLabel);
     addAndMakeVisible(inputsCombo);
     inputsCombo.addItem("1 (Mono)", 1);
-    inputsCombo.addItem("2 (Estéreo)", 2);
+    inputsCombo.addItem(juce::String::fromUTF8("2 (Estéreo)"), 2);
     inputsCombo.addListener(this);
 
     outputsLabel.setText("Salidas:", juce::dontSendNotification);
     addAndMakeVisible(outputsLabel);
     addAndMakeVisible(outputsCombo);
     outputsCombo.addItem("1 (Mono)", 1);
-    outputsCombo.addItem("2 (Estéreo)", 2);
+    outputsCombo.addItem(juce::String::fromUTF8("2 (Estéreo)"), 2);
     outputsCombo.addListener(this);
 
     algoLabel.setText("Efecto:", juce::dontSendNotification);
