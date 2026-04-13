@@ -93,6 +93,7 @@ MainComponent::MainComponent() : menuBar(this) {
   };
 
   addAndMakeVisible(propertiesPanel);
+  propertiesPanel.inspectProject(&project);
 
   canvas.onSelectionChanged = [this](VisualElement *el) {
     if (el)

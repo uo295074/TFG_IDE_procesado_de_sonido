@@ -54,14 +54,20 @@ struct Project {
   std::vector<EffectDefinition> availableEffects;
   int currentEffectIndex = 0;
 
+  // 🔥 NUEVO (CLAVE PARA CUSTOM)
+  bool isCustom = false;
+
   juce::String pluginName = "Mi Plugin Nuevo";
   juce::String manufacturer = "Mi Nombre";
   juce::String pluginURI = "http://miweb.com/plugins/miplugin";
 
+  // 🔥 NUEVO: VARIABLES PERSISTENTES
+  juce::String userVariables = "// Variables persistentes\n";
+
   // Código de inicialización
   juce::String initCode;
 
-  // ⚠️ LEGACY (mantener por ahora)
+  // ⚠️ LEGACY
   AlgorithmType currentAlgorithm = AlgorithmType::Gain;
 
   int numInputs = 2;
@@ -93,6 +99,10 @@ struct Project {
     xml->setAttribute("manufacturer", manufacturer);
     xml->setAttribute("uri", pluginURI);
     xml->setAttribute("algorithm", (int)currentAlgorithm);
+
+    // 🔥 GUARDAR CUSTOM
+    xml->setAttribute("isCustom", isCustom);
+
     xml->setAttribute("numInputs", numInputs);
     xml->setAttribute("numOutputs", numOutputs);
 
@@ -105,6 +115,11 @@ struct Project {
     auto initXml = new juce::XmlElement("INIT_CODE");
     initXml->addTextElement(initCode);
     xml->addChildElement(initXml);
+
+    // 🔥 NUEVO: VARIABLES
+    auto varsXml = new juce::XmlElement("USER_VARIABLES");
+    varsXml->addTextElement(userVariables);
+    xml->addChildElement(varsXml);
 
     // COMPONENTS
     auto compsXml = new juce::XmlElement("COMPONENTS");
@@ -121,7 +136,7 @@ struct Project {
       cXml->setAttribute("max", comp.max);
       cXml->setAttribute("def", comp.def);
 
-      // ⚠️ legacy
+      // legacy
       cXml->setAttribute("role", (int)comp.role);
 
       // 🔥 NUEVO
@@ -148,6 +163,9 @@ struct Project {
 
     currentAlgorithm = (AlgorithmType)xml->getIntAttribute("algorithm", 0);
 
+    // 🔥 CARGAR CUSTOM
+    isCustom = xml->getBoolAttribute("isCustom", false);
+
     numInputs = xml->getIntAttribute("numInputs", 2);
     numOutputs = xml->getIntAttribute("numOutputs", 2);
 
@@ -158,6 +176,10 @@ struct Project {
     // INIT
     if (auto *initXml = xml->getChildByName("INIT_CODE"))
       initCode = initXml->getAllSubText();
+
+    // 🔥 NUEVO: VARIABLES
+    if (auto *varsXml = xml->getChildByName("USER_VARIABLES"))
+      userVariables = varsXml->getAllSubText();
 
     // COMPONENTS
     components.clear();

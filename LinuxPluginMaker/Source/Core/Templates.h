@@ -1,19 +1,11 @@
-/*
-  ==============================================================================
-    Source/Core/Templates.h
-    (Versión ACTUALIZADA: DSP Dinámico + I/O Dinámicos)
-  ==============================================================================
-*/
-
 #pragma once
 #include <string>
 
-namespace Templates
-{
-    // ==============================================================================
-    // 1. DSP HEADER
-    // ==============================================================================
-    const std::string processorHeader = R"jv(
+namespace Templates {
+// ==============================================================================
+// 1. DSP HEADER
+// ==============================================================================
+const std::string processorHeader = R"jv(
 #pragma once
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <vector>
@@ -26,7 +18,6 @@ public:
 
     void prepare(double sampleRate, int samplesPerBlock);
     
-    // params contiene los valores de todos los sliders en orden
     void process(float* const* inputChannelData, float* const* outputChannelData, 
                  int numInChannels, int numOutChannels, int numSamples, 
                  const std::vector<float>& params);
@@ -36,13 +27,16 @@ public:
 private:
     double currentSampleRate = 44100.0;
     int currentBlockSize = 512;
+
+    // 🔥 VARIABLES USUARIO
+    {{USER_VARS}}
 };
 )jv";
 
-    // ==============================================================================
-    // 2. DSP CPP
-    // ==============================================================================
-    const std::string processorCpp = R"jv(
+// ==============================================================================
+// 2. DSP CPP
+// ==============================================================================
+const std::string processorCpp = R"jv(
 #include "PluginProcessor.h"
 #include <cmath> 
 
@@ -53,6 +47,8 @@ void DspEngine::prepare(double sampleRate, int samplesPerBlock)
 {
     currentSampleRate = sampleRate;
     currentBlockSize = samplesPerBlock;
+
+    // 🔥 INIT USUARIO
     {{INIT_CODE}}
 }
 
@@ -62,34 +58,32 @@ void DspEngine::process(float* const* inputChannelData, float* const* outputChan
 {
     juce::AudioBuffer<float> buffer(outputChannelData, numOutChannels, numSamples);
 
-    // 1. Copiar entrada a salida de forma segura (mezclando si es necesario)
     int minChannels = std::min(numInChannels, numOutChannels);
     for (int i = 0; i < minChannels; ++i)
         buffer.copyFrom(i, 0, inputChannelData[i], numSamples);
         
-    // Si hay más salidas que entradas (ej: Mono a Estéreo), duplicamos el canal 1
     if (numOutChannels > numInChannels && numInChannels > 0)
         for (int i = numInChannels; i < numOutChannels; ++i)
             buffer.copyFrom(i, 0, inputChannelData[0], numSamples);
 
-    int totalNumInputChannels = numOutChannels; // Procesamos sobre las salidas
+    int totalNumInputChannels = numOutChannels;
 
-    // 2. INYECCIÓN DE ALGORITMO SELECCIONADO
+    // 🔥 DSP USUARIO
     {{DSP_CODE}}
 }
 )jv";
 
-    // ==============================================================================
-    // 3. DUMMY HEADER
-    // ==============================================================================
-    const std::string editorHeader = R"jv(
+// ==============================================================================
+// 3. DUMMY HEADER
+// ==============================================================================
+const std::string editorHeader = R"jv(
 #pragma once
 )jv";
 
-    // ==============================================================================
-    // 4. LV2 WRAPPER (¡Ahora es dinámico para Mono/Estéreo!)
-    // ==============================================================================
-    const std::string editorCpp = R"jv(
+// ==============================================================================
+// 4. LV2 WRAPPER (SIN GUI)
+// ==============================================================================
+const std::string editorCpp = R"jv(
 #include <cstdint>
 #include <cstdlib>
 #include <vector>
@@ -116,29 +110,25 @@ static LV2_Handle instantiate(const LV2_Descriptor*, double rate, const char*, c
     Lv2Plugin* plugin = new Lv2Plugin();
     plugin->dsp = new DspEngine();
     plugin->dsp->prepare(rate, 512);
-    
+
     plugin->inputChans.resize(NUM_INPUTS, nullptr);
     plugin->outputChans.resize(NUM_OUTPUTS, nullptr);
     plugin->paramPtrs.resize(NUM_PARAMS, nullptr);
-    
+
     return (LV2_Handle)plugin;
 }
 
 static void connect_port(LV2_Handle instance, uint32_t port, void* data) {
     Lv2Plugin* plugin = (Lv2Plugin*)instance;
-    
-    // Conectamos dinámicamente sin importar si es 1 o 2 canales
-    if (port < NUM_INPUTS) {
+
+    if (port < NUM_INPUTS)
         plugin->inputChans[port] = (float*)data;
-    } 
-    else if (port < NUM_INPUTS + NUM_OUTPUTS) {
+    else if (port < NUM_INPUTS + NUM_OUTPUTS)
         plugin->outputChans[port - NUM_INPUTS] = (float*)data;
-    } 
     else {
         int paramIndex = (int)port - PARAM_START_INDEX;
-        if (paramIndex >= 0 && paramIndex < NUM_PARAMS) {
+        if (paramIndex >= 0 && paramIndex < NUM_PARAMS)
             plugin->paramPtrs[paramIndex] = (float*)data;
-        }
     }
 }
 
@@ -146,14 +136,10 @@ static void run(LV2_Handle instance, uint32_t n_samples) {
     Lv2Plugin* plugin = (Lv2Plugin*)instance;
 
     std::vector<float> currentValues(NUM_PARAMS);
-    for (int i = 0; i < NUM_PARAMS; ++i) {
-        if (plugin->paramPtrs[i] != nullptr)
-            currentValues[i] = *(plugin->paramPtrs[i]);
-        else
-            currentValues[i] = 0.0f;
-    }
+    for (int i = 0; i < NUM_PARAMS; ++i)
+        currentValues[i] = plugin->paramPtrs[i] ? *(plugin->paramPtrs[i]) : 0.0f;
 
-    plugin->dsp->process(plugin->inputChans.data(), plugin->outputChans.data(), 
+    plugin->dsp->process(plugin->inputChans.data(), plugin->outputChans.data(),
                          NUM_INPUTS, NUM_OUTPUTS, (int)n_samples, currentValues);
 }
 
@@ -179,10 +165,10 @@ extern "C" {
 }
 )jv";
 
-    // ==============================================================================
-    // 5. CMAKE (TTL GENERATION DINÁMICA)
-    // ==============================================================================
-    const std::string cmakeFile = R"jv(
+// ==============================================================================
+// 5. CMAKE
+// ==============================================================================
+const std::string cmakeFile = R"jv(
 cmake_minimum_required(VERSION 3.15)
 project(SimpleLv2Plugin)
 
@@ -222,4 +208,4 @@ add_custom_command(TARGET MiEfectoDSP POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/plugin.ttl $<TARGET_FILE_DIR:MiEfectoDSP>
 )
 )jv";
-}
+} // namespace Templates

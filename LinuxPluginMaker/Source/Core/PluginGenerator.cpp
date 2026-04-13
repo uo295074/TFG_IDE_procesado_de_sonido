@@ -1,7 +1,7 @@
 /*
   ==============================================================================
     Source/Core/PluginGenerator.cpp
-    (VERSIÓN MEDIO FINAL: Mapeo por ParamRole)
+    (VERSIÓN ESTABLE: INIT + VARIABLES + DSP FIX)
   ==============================================================================
 */
 
@@ -16,6 +16,7 @@ PluginGenerator::PluginGenerator() {
 void PluginGenerator::createPluginFiles(PluginData::Project &project) {
   if (!desktopDir.exists())
     desktopDir.createDirectory();
+
   juce::File sourceDir = desktopDir.getChildFile("Source");
   if (!sourceDir.exists())
     sourceDir.createDirectory();
@@ -56,6 +57,7 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
 
     if (comp.type == PluginData::ComponentType::Slider ||
         comp.type == PluginData::ComponentType::Knob) {
+
       ttlPorts += "a lv2:InputPort, lv2:ControlPort ; ";
       ttlPorts += "lv2:index " + juce::String(portIndex) + " ; ";
       ttlPorts += "lv2:symbol \\\"" + comp.symbol + "\\\" ; ";
@@ -63,7 +65,9 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
       ttlPorts += "lv2:default " + juce::String(comp.def) + " ; ";
       ttlPorts += "lv2:minimum " + juce::String(comp.min) + " ; ";
       ttlPorts += "lv2:maximum " + juce::String(comp.max);
+
     } else if (comp.type == PluginData::ComponentType::Toggle) {
+
       ttlPorts += "a lv2:InputPort, lv2:ControlPort ; ";
       ttlPorts += "lv2:portProperty lv2:toggled ; ";
       ttlPorts += "lv2:index " + juce::String(portIndex) + " ; ";
@@ -78,159 +82,88 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
   }
 
   // ================================
-  // 3. MAPEO POR ROLE
+  // 3. DSP GENERATION
   // ================================
-
-  int driveParam = -1;
-  int mixParam = -1;
-  int toneParam = -1;
-  int gainParam = -1;
-  int freqParam = -1;
-  int depthParam = -1;
-  int toggleParam = -1;
-
-  for (int i = 0; i < project.components.size(); ++i) {
-    const auto &comp = project.components[i];
-
-    if (comp.role == PluginData::ParamRole::Drive)
-      driveParam = i;
-    else if (comp.role == PluginData::ParamRole::Mix)
-      mixParam = i;
-    else if (comp.role == PluginData::ParamRole::Tone)
-      toneParam = i;
-    else if (comp.role == PluginData::ParamRole::Gain)
-      gainParam = i;
-    else if (comp.role == PluginData::ParamRole::Frequency)
-      freqParam = i;
-    else if (comp.role == PluginData::ParamRole::Depth)
-      depthParam = i;
-
-    if (comp.type == PluginData::ComponentType::Toggle && toggleParam == -1)
-      toggleParam = i;
-  }
-
-  auto getParam = [&](int idx, juce::String def) {
-    return (idx >= 0) ? "params[" + juce::String(idx) + "]" : def;
-  };
-
-  juce::String driveStr = getParam(driveParam, "0.5f");
-  juce::String mixStr = getParam(mixParam, "1.0f");
-  juce::String toneStr = getParam(toneParam, "1.0f");
-  juce::String gainStr = getParam(gainParam, "1.0f");
-  juce::String freqStr = getParam(freqParam, "1.0f");
-  juce::String depthStr = getParam(depthParam, "0.5f");
-  juce::String toggleStr = getParam(toggleParam, "1.0f");
-
   juce::String dspCode;
 
-  // ================================
-  // 4. DSP GENERATION
-  // ================================
-
-  switch (project.currentAlgorithm) {
-  case PluginData::AlgorithmType::Distortion:
-    dspCode = R"(
-
-            float drive = 1.0f + ()" +
-              driveStr + R"( * 10.0f);
-            float mix = )" +
-              mixStr + R"(;
-            float tone = )" +
-              toneStr + R"(;
-            bool enabled = ()" +
-              toggleStr + R"( > 0.5f);
-
-            for (int ch = 0; ch < totalNumInputChannels; ++ch)
-            {
-                auto* data = buffer.getWritePointer(ch);
-
-                for (int i = 0; i < buffer.getNumSamples(); ++i)
-                {
-                    float clean = data[i];
-
-                    if (enabled)
-                    {
-                        float distorted = std::tanh(clean * drive);
-                        float out = (clean * (1.0f - mix)) + (distorted * mix);
-                        out *= tone;
-                        data[i] = out;
-                    }
-                }
-            }
-            )";
-    break;
-
-  case PluginData::AlgorithmType::Tremolo:
-    dspCode = R"(
-
-            float freq = )" +
-              freqStr + R"(;
-            float depth = )" +
-              depthStr + R"(;
-            bool enabled = ()" +
-              toggleStr + R"( > 0.5f);
-
-            static float phase = 0.0f;
-            float sr = getSampleRate();
-            float inc = (freq * 2.0f * juce::MathConstants<float>::pi) / sr;
-
-            for (int ch = 0; ch < totalNumInputChannels; ++ch)
-            {
-                auto* data = buffer.getWritePointer(ch);
-
-                for (int i = 0; i < buffer.getNumSamples(); ++i)
-                {
-                    if (enabled)
-                    {
-                        float lfo = 1.0f - (depth * 0.5f * (1.0f + std::sin(phase)));
-                        data[i] *= lfo;
-                    }
-
-                    phase += inc;
-                    if (phase > 2.0f * juce::MathConstants<float>::pi)
-                        phase -= 2.0f * juce::MathConstants<float>::pi;
-                }
-            }
-            )";
-    break;
-
-  case PluginData::AlgorithmType::Gain:
-  default:
-    dspCode = R"(
-
-            float gain = )" +
-              gainStr + R"(;
-            bool enabled = ()" +
-              toggleStr + R"( > 0.5f);
-
-            for (int ch = 0; ch < totalNumInputChannels; ++ch)
-            {
-                auto* data = buffer.getWritePointer(ch);
-
-                for (int i = 0; i < buffer.getNumSamples(); ++i)
-                {
-                    if (enabled)
-                        data[i] *= gain;
-                }
-            }
-            )";
-    break;
-
-  case PluginData::AlgorithmType::Custom:
+  if (project.isCustom) {
     dspCode = project.customDspCode;
-    break;
+  } else {
+    switch (project.currentAlgorithm) {
+
+    case PluginData::AlgorithmType::Distortion:
+      dspCode = R"(
+
+        float drive = params.size() > 0 ? params[0] : 1.0f;
+        float mix   = params.size() > 1 ? params[1] : 1.0f;
+
+        for (int ch = 0; ch < totalNumInputChannels; ++ch)
+        {
+            auto* data = buffer.getWritePointer(ch);
+
+            for (int i = 0; i < buffer.getNumSamples(); ++i)
+            {
+                float dry = data[i];
+                float wet = std::tanh(dry * drive * 5.0f);
+                data[i] = dry * (1.0f - mix) + wet * mix;
+            }
+        }
+
+    )";
+      break;
+
+    case PluginData::AlgorithmType::Gain:
+      dspCode = R"(
+
+        float gain = params.size() > 0 ? params[0] : 1.0f;
+
+        for (int ch = 0; ch < totalNumInputChannels; ++ch)
+        {
+            auto* data = buffer.getWritePointer(ch);
+
+            for (int i = 0; i < buffer.getNumSamples(); ++i)
+            {
+                data[i] *= gain;
+            }
+        }
+
+    )";
+      break;
+
+    default:
+      // fallback
+      dspCode = R"(
+
+        for (int ch = 0; ch < totalNumInputChannels; ++ch)
+        {
+            auto* data = buffer.getWritePointer(ch);
+
+            for (int i = 0; i < buffer.getNumSamples(); ++i)
+            {
+                data[i] *= 1.0f;
+            }
+        }
+
+    )";
+      break;
+    }
   }
 
   // ================================
-  // 5. FILE GENERATION
+  // 4. GENERAR ARCHIVOS
   // ================================
-  juce::String cmakeContent = Templates::cmakeFile;
 
-  cmakeContent = cmakeContent.replace("{{AUDIO_PORTS_TTL}}", audioPortsTtl);
-  cmakeContent = cmakeContent.replace("{{TTL_PORTS}}", ttlPorts);
-  cmakeContent = cmakeContent.replace("{{PLUGIN_NAME}}", project.pluginName);
-  cmakeContent = cmakeContent.replace("{{PLUGIN_URI}}", project.pluginURI);
+  // HEADER (variables del usuario)
+  juce::String headerContent = Templates::processorHeader;
+  headerContent = headerContent.replace("{{USER_VARS}}", project.userVariables);
 
+  // PROCESSOR
+  juce::String processorContent = Templates::processorCpp;
+  processorContent = processorContent.replace("{{DSP_CODE}}", dspCode);
+  processorContent =
+      processorContent.replace("{{INIT_CODE}}", project.initCode);
+
+  // EDITOR
   juce::String editorContent = Templates::editorCpp;
   editorContent =
       editorContent.replace("{{NUM_INPUTS}}", juce::String(project.numInputs));
@@ -239,20 +172,16 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
   editorContent = editorContent.replace(
       "{{NUM_PARAMS}}", juce::String(project.components.size()));
 
-  juce::String processorContent = Templates::processorCpp;
-  if (processorContent.contains("{{DSP_CODE}}"))
-    processorContent = processorContent.replace("{{DSP_CODE}}", dspCode);
-  else
-    processorContent = processorContent.replace("// INSERT_DSP_HERE", dspCode);
+  // CMAKE
+  juce::String cmakeContent = Templates::cmakeFile;
+  cmakeContent = cmakeContent.replace("{{AUDIO_PORTS_TTL}}", audioPortsTtl);
+  cmakeContent = cmakeContent.replace("{{TTL_PORTS}}", ttlPorts);
+  cmakeContent = cmakeContent.replace("{{PLUGIN_NAME}}", project.pluginName);
+  cmakeContent = cmakeContent.replace("{{PLUGIN_URI}}", project.pluginURI);
 
-  // INIT
-  if (processorContent.contains("{{INIT_CODE}}"))
-    processorContent =
-        processorContent.replace("{{INIT_CODE}}", project.initCode);
-
+  // WRITE
   desktopDir.getChildFile("CMakeLists.txt").replaceWithText(cmakeContent);
-  sourceDir.getChildFile("PluginProcessor.h")
-      .replaceWithText(Templates::processorHeader);
+  sourceDir.getChildFile("PluginProcessor.h").replaceWithText(headerContent);
   sourceDir.getChildFile("PluginProcessor.cpp")
       .replaceWithText(processorContent);
   sourceDir.getChildFile("PluginEditor.h")
@@ -260,11 +189,12 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
   sourceDir.getChildFile("PluginEditor.cpp").replaceWithText(editorContent);
 }
 
-// ==============================================================================
+// ================================
 // COMPILAR E INSTALAR
-// ==============================================================================
+// ================================
 juce::String
 PluginGenerator::compileAndInstallPlugin(const PluginData::Project &project) {
+
   juce::String safeName = "";
   for (auto c : project.pluginName)
     if (juce::CharacterFunctions::isLetter(c))
@@ -290,14 +220,17 @@ PluginGenerator::compileAndInstallPlugin(const PluginData::Project &project) {
                                         : "ERROR: fallo en compilación";
 }
 
+// ================================
+// VALIDACIÓN
+// ================================
 bool PluginGenerator::validateProject(const PluginData::Project &project,
                                       juce::String &error) {
+
   if (project.components.empty()) {
     error = "Añade al menos un componente.";
     return false;
   }
 
-  // comprobar duplicados de símbolo
   std::set<juce::String> symbols;
 
   for (const auto &comp : project.components) {
@@ -306,39 +239,6 @@ bool PluginGenerator::validateProject(const PluginData::Project &project,
       return false;
     }
     symbols.insert(comp.symbol);
-  }
-
-  // comprobar parámetros según algoritmo
-  bool hasDrive = false;
-  bool hasMix = false;
-  bool hasGain = false;
-
-  for (const auto &comp : project.components) {
-    if (comp.role == PluginData::ParamRole::Drive)
-      hasDrive = true;
-    if (comp.role == PluginData::ParamRole::Mix)
-      hasMix = true;
-    if (comp.role == PluginData::ParamRole::Gain)
-      hasGain = true;
-  }
-
-  switch (project.currentAlgorithm) {
-  case PluginData::AlgorithmType::Distortion:
-    if (!hasDrive) {
-      error = "La distorsión necesita al menos un parámetro Drive.";
-      return false;
-    }
-    break;
-
-  case PluginData::AlgorithmType::Gain:
-    if (!hasGain) {
-      error = "El efecto Gain necesita un parámetro Gain.";
-      return false;
-    }
-    break;
-
-  default:
-    break;
   }
 
   return true;
