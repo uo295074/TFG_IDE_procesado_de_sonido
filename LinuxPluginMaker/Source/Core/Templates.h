@@ -68,6 +68,32 @@ void DspEngine::process(float* const* inputChannelData, float* const* outputChan
 
     int totalNumInputChannels = numOutChannels;
 
+    // ==========================================================================
+    // 🔥 AYUDA PARA SELECTORES (IMPORTANTE)
+    // ==========================================================================
+    // Los parámetros discretos (Selector) se usan así:
+    //
+    // int mode = (int)params[X];
+    //
+    // Ejemplo típico:
+    //
+    // int mode = (int)params[0];
+    //
+    // switch (mode)
+    // {
+    //     case 0: // Soft clip
+    //         break;
+    //     case 1: // Hard clip
+    //         break;
+    //     case 2: // Foldback
+    //         break;
+    // }
+    //
+    // IMPORTANTE:
+    // - Los valores son enteros (0,1,2...)
+    // - El rango viene definido por numSteps en el IDE
+    // ==========================================================================
+
     // 🔥 DSP USUARIO
     {{DSP_CODE}}
 }

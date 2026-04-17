@@ -8,7 +8,9 @@ namespace PluginData {
 // ENUMS (mantengo por compatibilidad)
 // ================================
 enum class AlgorithmType { Gain, Distortion, Tremolo, Custom };
-enum class ComponentType { Slider, Toggle, Knob };
+
+// 🔥 AÑADIDO Selector
+enum class ComponentType { Slider, Toggle, Knob, Selector };
 
 // ⚠️ LEGACY (se eliminará en el futuro)
 enum class ParamRole { None, Gain, Drive, Mix, Tone, Frequency, Depth };
@@ -44,6 +46,12 @@ struct Component {
   float min = 0.0f;
   float max = 1.0f;
   float def = 0.5f;
+
+  // 🔥 NUEVO: SELECTOR (discreto)
+  int numSteps = 3;
+
+  // 🔥 NUEVO PRO: nombres de opciones (Soft, Hard, etc.)
+  std::vector<juce::String> options;
 };
 
 // ================================
@@ -136,6 +144,16 @@ struct Project {
       cXml->setAttribute("max", comp.max);
       cXml->setAttribute("def", comp.def);
 
+      // 🔥 NUEVO (selector)
+      cXml->setAttribute("numSteps", comp.numSteps);
+      // 🔥 NUEVO PRO: guardar opciones
+      if (!comp.options.empty()) {
+        juce::String opts;
+        for (auto &o : comp.options)
+          opts += o + ";";
+        cXml->setAttribute("options", opts);
+      }
+
       // legacy
       cXml->setAttribute("role", (int)comp.role);
 
@@ -197,6 +215,19 @@ struct Project {
         c.min = cXml->getDoubleAttribute("min", 0.0);
         c.max = cXml->getDoubleAttribute("max", 1.0);
         c.def = cXml->getDoubleAttribute("def", 0.5);
+
+        // 🔥 SELECTOR
+        c.numSteps = cXml->getIntAttribute("numSteps", 3);
+
+        // 🔥 NUEVO PRO: cargar opciones
+        juce::String opts = cXml->getStringAttribute("options", "");
+        if (opts.isNotEmpty()) {
+          juce::StringArray arr;
+          arr.addTokens(opts, ";", "");
+          for (auto &o : arr)
+            if (o.isNotEmpty())
+              c.options.push_back(o);
+        }
 
         // legacy
         c.role = (ParamRole)cXml->getIntAttribute("role", 0);

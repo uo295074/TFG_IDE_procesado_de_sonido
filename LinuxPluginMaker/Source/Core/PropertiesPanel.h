@@ -21,6 +21,7 @@ public:
     addCompField(maxLabel, maxEditor, juce::String::fromUTF8("Máximo:"));
     addCompField(defLabel, defEditor, "Defecto:");
 
+    addCompField(stepsLabel, stepsEditor, "Opciones:"); // Nuevo selector
     roleLabel.setText(juce::String::fromUTF8("Parámetro:"),
                       juce::dontSendNotification);
     addAndMakeVisible(roleLabel);
@@ -109,6 +110,10 @@ public:
         defEditor.setText(juce::String(element->getDef()));
       }
 
+      // 🔥 SELECTOR
+      if (isSelector())
+        stepsEditor.setText(juce::String(element->getNumSteps()));
+
       if (element->getParamName().isNotEmpty())
         roleCombo.setText(element->getParamName(), juce::dontSendNotification);
     }
@@ -123,6 +128,10 @@ private:
   juce::Label compNameLabel, compIDLabel, minLabel, maxLabel, defLabel;
   juce::TextEditor compNameEditor, compIDEditor, minEditor, maxEditor,
       defEditor;
+
+  // Nuevo selector
+  juce::Label stepsLabel;
+  juce::TextEditor stepsEditor;
 
   juce::Label roleLabel;
   juce::ComboBox roleCombo;
@@ -146,6 +155,14 @@ private:
 
     return (currentElement->getType() == PluginData::ComponentType::Slider ||
             currentElement->getType() == PluginData::ComponentType::Knob);
+  }
+
+  // Nuevo selector
+  bool isSelector() const {
+    if (!currentElement)
+      return false;
+
+    return currentElement->getType() == PluginData::ComponentType::Selector;
   }
 
   void populateAlgorithmCombo() {
@@ -203,6 +220,10 @@ private:
     defLabel.setVisible(showComp && slider);
     defEditor.setVisible(showComp && slider);
 
+    // 🔥 SELECTOR
+    stepsLabel.setVisible(showComp && isSelector());
+    stepsEditor.setVisible(showComp && isSelector());
+
     roleLabel.setVisible(showComp && slider);
     roleCombo.setVisible(showComp && slider);
 
@@ -255,6 +276,14 @@ private:
             }
           }
         }
+      }
+
+      // 🔥 SELECTOR
+      if (isSelector()) {
+        int steps = stepsEditor.getText().getIntValue();
+        if (steps < 2)
+          steps = 2;
+        currentElement->setNumSteps(steps);
       }
 
     } else if (currentProject) {
@@ -352,6 +381,8 @@ private:
     layoutField(minLabel, minEditor);
     layoutField(maxLabel, maxEditor);
     layoutField(defLabel, defEditor);
+    // 🔥 NUEVO
+    layoutField(stepsLabel, stepsEditor);
     layoutField(roleLabel, roleCombo);
 
     layoutField(projNameLabel, projNameEditor);

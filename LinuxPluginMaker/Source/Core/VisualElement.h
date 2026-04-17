@@ -24,10 +24,12 @@ public:
     // ⚠️ LEGACY
     role = PluginData::ParamRole::None;
 
-    if (type == PluginData::ComponentType::Slider) {
+    if (type == PluginData::ComponentType::Slider ||
+        type == PluginData::ComponentType::Knob ||
+        type == PluginData::ComponentType::Selector) {
       minVal = 0.0f;
       maxVal = 1.0f;
-      defVal = 0.5f;
+      defVal = 0.0f;
     } else {
       minVal = 0.0f;
       maxVal = 1.0f;
@@ -36,7 +38,9 @@ public:
 
     // --- UI ---
     if (type == PluginData::ComponentType::Slider ||
-        type == PluginData::ComponentType::Knob) {
+        type == PluginData::ComponentType::Knob ||
+        type == PluginData::ComponentType::Selector) {
+
       slider.reset(new juce::Slider());
 
       if (type == PluginData::ComponentType::Slider)
@@ -89,7 +93,13 @@ public:
   float getDef() const { return defVal; }
 
   // =========================
-  // 🔥 NUEVO: PARAM NAME
+  // 🔥 SELECTOR (NUEVO)
+  // =========================
+  void setNumSteps(int s) { numSteps = s; }
+  int getNumSteps() const { return numSteps; }
+
+  // =========================
+  // 🔥 PARAM NAME
   // =========================
   void setParamName(const juce::String &name) {
     paramName = name;
@@ -98,7 +108,7 @@ public:
   juce::String getParamName() const { return paramName; }
 
   // =========================
-  // ⚠️ LEGACY (no usar ya)
+  // ⚠️ LEGACY
   // =========================
   void setRole(PluginData::ParamRole r) { role = r; }
   PluginData::ParamRole getRole() const { return role; }
@@ -154,7 +164,6 @@ public:
       g.drawRect(getLocalBounds(), 1);
     }
 
-    // 🔥 DEBUG VISUAL (AHORA DINÁMICO)
     g.setColour(juce::Colours::white.withAlpha(0.7f));
     g.setFont(10.0f);
     g.drawText(paramName, getLocalBounds().removeFromBottom(15),
@@ -183,6 +192,9 @@ private:
 
   // 🔥 NUEVO
   juce::String paramName;
+
+  // 🔥 SELECTOR
+  int numSteps = 3;
 
   // ⚠️ LEGACY
   PluginData::ParamRole role = PluginData::ParamRole::None;

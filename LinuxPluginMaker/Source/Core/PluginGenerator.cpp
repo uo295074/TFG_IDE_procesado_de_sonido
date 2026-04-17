@@ -1,7 +1,7 @@
 /*
   ==============================================================================
     Source/Core/PluginGenerator.cpp
-    (VERSIÓN ESTABLE: INIT + VARIABLES + DSP FIX)
+    (VERSIÓN ESTABLE: INIT + VARIABLES + DSP FIX + SELECTOR)
   ==============================================================================
 */
 
@@ -75,6 +75,33 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
       ttlPorts += "lv2:name \\\"" + comp.name + "\\\" ; ";
       ttlPorts += "lv2:default " + juce::String(comp.def) + " ; ";
       ttlPorts += "lv2:minimum 0 ; lv2:maximum 1";
+
+    }
+    // 🔥 NUEVO: SELECTOR
+    else if (comp.type == PluginData::ComponentType::Selector) {
+
+      ttlPorts += "a lv2:InputPort, lv2:ControlPort ; ";
+      ttlPorts += "lv2:index " + juce::String(portIndex) + " ; ";
+      ttlPorts += "lv2:symbol \\\"" + comp.symbol + "\\\" ; ";
+      ttlPorts += "lv2:name \\\"" + comp.name + "\\\" ; ";
+
+      ttlPorts += "lv2:default 0 ; ";
+      ttlPorts += "lv2:minimum 0 ; ";
+      ttlPorts += "lv2:maximum " + juce::String(comp.numSteps - 1) + " ; ";
+
+      // 🔥 PROPERTIES
+      ttlPorts += "lv2:portProperty lv2:integer , lv2:enumeration ; ";
+
+      // 🔥 LABELS (scalePoints)
+      if (!comp.options.empty()) {
+        ttlPorts += "lv2:scalePoint ";
+        for (int i = 0; i < comp.options.size(); ++i) {
+          ttlPorts += "[ rdfs:label \\\"" + comp.options[i] +
+                      "\\\" ; rdf:value " + juce::String(i) + " ]";
+          if (i < comp.options.size() - 1)
+            ttlPorts += " , ";
+        }
+      }
     }
 
     ttlPorts += " ] ";
@@ -94,22 +121,44 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
     case PluginData::AlgorithmType::Distortion:
       dspCode = R"(
 
-        float drive = params.size() > 0 ? params[0] : 1.0f;
-        float mix   = params.size() > 1 ? params[1] : 1.0f;
+    float drive = params.size() > 0 ? params[0] : 1.0f;
+    float mix   = params.size() > 1 ? params[1] : 1.0f;
 
-        for (int ch = 0; ch < totalNumInputChannels; ++ch)
+    // 🔥 BUSCAR selector (último parámetro normalmente)
+    int mode = params.size() > 2 ? (int)params[2] : 0;
+
+    for (int ch = 0; ch < totalNumInputChannels; ++ch)
+    {
+        auto* data = buffer.getWritePointer(ch);
+
+        for (int i = 0; i < buffer.getNumSamples(); ++i)
         {
-            auto* data = buffer.getWritePointer(ch);
+            float dry = data[i];
+            float x = dry * drive * 5.0f;
+            float wet = x;
 
-            for (int i = 0; i < buffer.getNumSamples(); ++i)
+            switch (mode)
             {
-                float dry = data[i];
-                float wet = std::tanh(dry * drive * 5.0f);
-                data[i] = dry * (1.0f - mix) + wet * mix;
-            }
-        }
+                case 0: // Soft
+                    wet = std::tanh(x);
+                    break;
 
-    )";
+                case 1: // Hard
+                    wet = juce::jlimit(-1.0f, 1.0f, x);
+                    break;
+
+                case 2: // Foldback
+                    if (x > 1.0f || x < -1.0f)
+                        x = std::fabs(std::fabs(fmod(x - 1.0f, 4.0f)) - 2.0f) - 1.0f;
+                    wet = x;
+                    break;
+            }
+
+            data[i] = dry * (1.0f - mix) + wet * mix;
+        }
+    }
+
+  )";
       break;
 
     case PluginData::AlgorithmType::Gain:
@@ -131,7 +180,6 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
       break;
 
     default:
-      // fallback
       dspCode = R"(
 
         for (int ch = 0; ch < totalNumInputChannels; ++ch)
@@ -153,17 +201,14 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
   // 4. GENERAR ARCHIVOS
   // ================================
 
-  // HEADER (variables del usuario)
   juce::String headerContent = Templates::processorHeader;
   headerContent = headerContent.replace("{{USER_VARS}}", project.userVariables);
 
-  // PROCESSOR
   juce::String processorContent = Templates::processorCpp;
   processorContent = processorContent.replace("{{DSP_CODE}}", dspCode);
   processorContent =
       processorContent.replace("{{INIT_CODE}}", project.initCode);
 
-  // EDITOR
   juce::String editorContent = Templates::editorCpp;
   editorContent =
       editorContent.replace("{{NUM_INPUTS}}", juce::String(project.numInputs));
@@ -172,14 +217,12 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
   editorContent = editorContent.replace(
       "{{NUM_PARAMS}}", juce::String(project.components.size()));
 
-  // CMAKE
   juce::String cmakeContent = Templates::cmakeFile;
   cmakeContent = cmakeContent.replace("{{AUDIO_PORTS_TTL}}", audioPortsTtl);
   cmakeContent = cmakeContent.replace("{{TTL_PORTS}}", ttlPorts);
   cmakeContent = cmakeContent.replace("{{PLUGIN_NAME}}", project.pluginName);
   cmakeContent = cmakeContent.replace("{{PLUGIN_URI}}", project.pluginURI);
 
-  // WRITE
   desktopDir.getChildFile("CMakeLists.txt").replaceWithText(cmakeContent);
   sourceDir.getChildFile("PluginProcessor.h").replaceWithText(headerContent);
   sourceDir.getChildFile("PluginProcessor.cpp")

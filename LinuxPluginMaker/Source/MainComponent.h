@@ -36,6 +36,7 @@ private:
   juce::TextButton addSliderBtn{"+ Slider"};
   juce::TextButton addToggleBtn{"+ Switch"};
   juce::TextButton addKnobBtn{"+ Knob"};
+  juce::TextButton addSelectorBtn{"+ Selector"};
   juce::TextButton clearBtn{"Borrar Todo"};
   juce::TextButton generateBtn{"GENERAR LV2"};
 

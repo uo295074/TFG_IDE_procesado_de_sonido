@@ -84,6 +84,14 @@ MainComponent::MainComponent() : menuBar(this) {
     counter++;
   };
 
+  addAndMakeVisible(addSelectorBtn);
+  addSelectorBtn.onClick = [this] {
+    static int counter = 1;
+    canvas.addElement(PluginData::ComponentType::Selector, counter,
+                      "Selector " + juce::String(counter));
+    counter++;
+  };
+
   addAndMakeVisible(clearBtn);
   clearBtn.setColour(juce::TextButton::buttonColourId, juce::Colours::darkred);
   clearBtn.onClick = [this] {
@@ -376,6 +384,8 @@ void MainComponent::resized() {
   addToggleBtn.setBounds(sidebar.removeFromTop(40));
   sidebar.removeFromTop(10);
   addKnobBtn.setBounds(sidebar.removeFromTop(40));
+  sidebar.removeFromTop(10);
+  addSelectorBtn.setBounds(sidebar.removeFromTop(40));
   clearBtn.setBounds(sidebar.removeFromBottom(40));
 
   // 3. COLUMNA DERECHA
