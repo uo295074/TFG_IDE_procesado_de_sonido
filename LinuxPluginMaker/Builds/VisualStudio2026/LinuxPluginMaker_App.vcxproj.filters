@@ -2,6 +2,9 @@
 
 <Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include="LinuxPluginMaker\Source\Data">
+      <UniqueIdentifier>{314362E7-32DA-8AC4-2ADA-1578763A7D93}</UniqueIdentifier>
+    </Filter>
     <Filter Include="LinuxPluginMaker\Source\Core">
       <UniqueIdentifier>{198C8DF7-2A2C-F6F2-2779-04DB55F8EA50}</UniqueIdentifier>
     </Filter>
@@ -2295,6 +2298,9 @@
     </ClCompile>
     <ClCompile Include="..\..\..\..\JUCE\modules\juce_gui_extra\juce_gui_extra.mm">
       <Filter>JUCE Modules\juce_gui_extra</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\JuceLibraryCode\BinaryData.cpp">
+      <Filter>JUCE Library Code</Filter>
     </ClCompile>
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_audio_basics.cpp">
       <Filter>JUCE Library Code</Filter>
@@ -5034,11 +5040,17 @@
     <ClInclude Include="..\..\..\..\JUCE\modules\juce_gui_extra\juce_gui_extra.h">
       <Filter>JUCE Modules\juce_gui_extra</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\JuceLibraryCode\BinaryData.h">
+      <Filter>JUCE Library Code</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\JuceLibraryCode\JuceHeader.h">
       <Filter>JUCE Library Code</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\Source\Data\effects.xml">
+      <Filter>LinuxPluginMaker\Source\Data</Filter>
+    </None>
     <None Include="..\..\..\..\JUCE\modules\juce_core\native\java\README.txt">
       <Filter>JUCE Modules\juce_core\native\java</Filter>
     </None>

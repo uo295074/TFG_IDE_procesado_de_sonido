@@ -26,18 +26,30 @@ MainComponent::MainComponent() : menuBar(this) {
   // 🔥 NUEVO: CARGA DE EFFECTS.XML
   // ================================
   {
-    juce::File xmlFile(
-        "/home/marcos/Escritorio/effects.xml"); // <-- ajusta ruta si quieres
+    juce::File xmlFile = juce::File::getCurrentWorkingDirectory()
+                             .getParentDirectory() // build/
+                             .getParentDirectory() // LinuxMakefile/
+                             .getChildFile("Source/Data/effects.xml");
+
+    juce::Logger::writeToLog("Ruta XML: " + xmlFile.getFullPathName());
 
     if (xmlFile.existsAsFile()) {
       project.availableEffects = PluginData::loadEffectsFromXML(xmlFile);
 
-      // DEBUG (puedes borrarlo luego)
+      // 🔥🔥🔥 NUEVO: log también selectores
       for (auto &e : project.availableEffects) {
         juce::Logger::writeToLog("Effect: " + e.name);
+
         for (auto &p : e.params)
           juce::Logger::writeToLog("  Param: " + p.name);
+
+        for (auto &s : e.selectors) {
+          juce::Logger::writeToLog("  Selector: " + s.name);
+          for (auto &opt : s.options)
+            juce::Logger::writeToLog("    Option: " + opt);
+        }
       }
+
     } else {
       juce::Logger::writeToLog("No se encontró effects.xml");
     }
@@ -58,6 +70,7 @@ MainComponent::MainComponent() : menuBar(this) {
   listLabel.setJustificationType(juce::Justification::centred);
 
   addAndMakeVisible(canvas);
+  canvas.setProject(&project);
 
   // BOTONES
   addAndMakeVisible(addSliderBtn);
@@ -100,6 +113,12 @@ MainComponent::MainComponent() : menuBar(this) {
     project.components.clear();
   };
 
+  addAndMakeVisible(deleteBtn);
+  deleteBtn.setColour(juce::TextButton::buttonColourId,
+                      juce::Colours::darkorange);
+
+  deleteBtn.onClick = [this] { canvas.deleteSelected(); };
+
   addAndMakeVisible(propertiesPanel);
   propertiesPanel.inspectProject(&project);
 
@@ -110,7 +129,13 @@ MainComponent::MainComponent() : menuBar(this) {
       propertiesPanel.inspectProject(&project);
   };
 
+  propertiesPanel.onDataChanged = [this]() {
+    canvas.repaint(); // 🔥🔥🔥 refresh selector dinámico
+    canvas.refreshAutoParams();
+  };
+
   propertiesPanel.inspectProject(&project);
+  propertiesPanel.repaint();
   propertiesPanel.setVisible(true);
 
   addAndMakeVisible(generateBtn);
@@ -173,7 +198,7 @@ MainComponent::~MainComponent() {}
 // --- IMPLEMENTACIÓN DEL MENÚ ---
 
 juce::StringArray MainComponent::getMenuBarNames() {
-  return {"Archivo", "Proyecto", "Ayuda"};
+  return {"Archivo", "Proyecto", "Presets", "Ayuda"};
 }
 
 juce::PopupMenu MainComponent::getMenuForIndex(int topLevelMenuIndex,
@@ -200,6 +225,10 @@ juce::PopupMenu MainComponent::getMenuForIndex(int topLevelMenuIndex,
                  juce::String::fromUTF8("Exportar código fuente..."));
   } else if (menuName == "Ayuda") {
     menu.addItem(HelpAbout, "Acerca de LinuxPluginMaker...");
+  } else if (menuName == "Presets") {
+    menu.addItem(1001, "Distortion");
+    menu.addItem(1002, "Filter");
+    menu.addItem(1003, "Tremolo");
   }
 
   return menu;
@@ -350,6 +379,68 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
             "TFG: Generador de Plugins LV2 para Linux.\nVersión 0.2"));
     break;
 
+  case 1001: // Distortion
+  {
+    canvas.clearAll();
+
+    for (int i = 0; i < project.availableEffects.size(); ++i)
+      if (project.availableEffects[i].name == "Distortion")
+        project.currentEffectIndex = i;
+
+    project.currentAlgorithm = PluginData::AlgorithmType::Distortion;
+    project.isCustom = false;
+
+    static int id = 1;
+    canvas.addElement(PluginData::ComponentType::Slider, id++, "Drive");
+    canvas.addElement(PluginData::ComponentType::Slider, id++, "Mix");
+    canvas.addElement(PluginData::ComponentType::Selector, id++, "Mode");
+
+    propertiesPanel.inspectProject(&project);
+    canvas.refreshAutoParams();
+    break;
+  }
+
+  case 1002: // Filter
+  {
+    canvas.clearAll();
+
+    for (int i = 0; i < project.availableEffects.size(); ++i)
+      if (project.availableEffects[i].name == "Filter")
+        project.currentEffectIndex = i;
+
+    project.currentAlgorithm = PluginData::AlgorithmType::Filter;
+    project.isCustom = false;
+
+    static int id = 1;
+    canvas.addElement(PluginData::ComponentType::Slider, id++, "Cutoff");
+    canvas.addElement(PluginData::ComponentType::Selector, id++, "Mode");
+
+    propertiesPanel.inspectProject(&project);
+    canvas.refreshAutoParams();
+    break;
+  }
+
+  case 1003: // Tremolo
+  {
+    canvas.clearAll();
+
+    for (int i = 0; i < project.availableEffects.size(); ++i)
+      if (project.availableEffects[i].name == "Tremolo")
+        project.currentEffectIndex = i;
+
+    project.currentAlgorithm = PluginData::AlgorithmType::Tremolo;
+    project.isCustom = false;
+
+    static int id = 1;
+    canvas.addElement(PluginData::ComponentType::Slider, id++, "Rate");
+    canvas.addElement(PluginData::ComponentType::Slider, id++, "Depth");
+    canvas.addElement(PluginData::ComponentType::Selector, id++, "Mode");
+
+    propertiesPanel.inspectProject(&project);
+    canvas.refreshAutoParams();
+    break;
+  }
+
   default:
     break;
   }
@@ -386,6 +477,9 @@ void MainComponent::resized() {
   addKnobBtn.setBounds(sidebar.removeFromTop(40));
   sidebar.removeFromTop(10);
   addSelectorBtn.setBounds(sidebar.removeFromTop(40));
+  sidebar.removeFromTop(10);
+  deleteBtn.setBounds(sidebar.removeFromTop(40)); // 🔥 NUEVO
+  sidebar.removeFromTop(10);
   clearBtn.setBounds(sidebar.removeFromBottom(40));
 
   // 3. COLUMNA DERECHA

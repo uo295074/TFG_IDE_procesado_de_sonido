@@ -7,7 +7,7 @@ namespace PluginData {
 // ================================
 // ENUMS (mantengo por compatibilidad)
 // ================================
-enum class AlgorithmType { Gain, Distortion, Tremolo, Custom };
+enum class AlgorithmType { Gain, Distortion, Tremolo, Filter, Custom };
 
 // 🔥 AÑADIDO Selector
 enum class ComponentType { Slider, Toggle, Knob, Selector };
@@ -22,9 +22,19 @@ struct EffectParam {
   juce::String name;
 };
 
+// 🔥🔥🔥 NUEVO: SELECTOR DEFINIDO EN XML
+struct EffectSelector {
+  juce::String name;
+  std::vector<juce::String> options;
+};
+
+// 🔥🔥🔥 MODIFICADO
 struct EffectDefinition {
   juce::String name;
   std::vector<EffectParam> params;
+
+  // 🔥 NUEVO: múltiples selectores posibles
+  std::vector<EffectSelector> selectors;
 };
 
 // ================================
@@ -47,10 +57,8 @@ struct Component {
   float max = 1.0f;
   float def = 0.5f;
 
-  // 🔥 NUEVO: SELECTOR (discreto)
+  // 🔥 SELECTOR
   int numSteps = 3;
-
-  // 🔥 NUEVO PRO: nombres de opciones (Soft, Hard, etc.)
   std::vector<juce::String> options;
 };
 
@@ -58,30 +66,23 @@ struct Component {
 // PROYECTO
 // ================================
 struct Project {
-  // 🔥 EFECTOS DINÁMICOS DESDE XML
   std::vector<EffectDefinition> availableEffects;
   int currentEffectIndex = 0;
 
-  // 🔥 NUEVO (CLAVE PARA CUSTOM)
   bool isCustom = false;
 
   juce::String pluginName = "Mi Plugin Nuevo";
   juce::String manufacturer = "Mi Nombre";
   juce::String pluginURI = "http://miweb.com/plugins/miplugin";
 
-  // 🔥 NUEVO: VARIABLES PERSISTENTES
   juce::String userVariables = "// Variables persistentes\n";
-
-  // Código de inicialización
   juce::String initCode;
 
-  // ⚠️ LEGACY
   AlgorithmType currentAlgorithm = AlgorithmType::Gain;
 
   int numInputs = 2;
   int numOutputs = 2;
 
-  // Código DSP usuario
   juce::String customDspCode =
       "// --- TU CÓDIGO DSP AQUÍ ---\n"
       "for (int channel = 0; channel < totalNumInputChannels; ++channel)\n"
@@ -89,7 +90,6 @@ struct Project {
       "    auto* channelData = buffer.getWritePointer (channel);\n"
       "    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)\n"
       "    {\n"
-      "        // Ejemplo: channelData[sample] *= params[0];\n"
       "    }\n"
       "}\n";
 
@@ -98,7 +98,7 @@ struct Project {
   Project() { initCode = "// Código de inicialización\n"; }
 
   // ================================
-  // XML EXPORT
+  // XML EXPORT (SIN CAMBIOS)
   // ================================
   std::unique_ptr<juce::XmlElement> toXml() const {
     auto xml = std::make_unique<juce::XmlElement>("LINUX_PLUGIN_MAKER_PROJECT");
@@ -108,28 +108,22 @@ struct Project {
     xml->setAttribute("uri", pluginURI);
     xml->setAttribute("algorithm", (int)currentAlgorithm);
 
-    // 🔥 GUARDAR CUSTOM
     xml->setAttribute("isCustom", isCustom);
-
     xml->setAttribute("numInputs", numInputs);
     xml->setAttribute("numOutputs", numOutputs);
 
-    // DSP CODE
     auto dspXml = new juce::XmlElement("CUSTOM_DSP");
     dspXml->addTextElement(customDspCode);
     xml->addChildElement(dspXml);
 
-    // INIT CODE
     auto initXml = new juce::XmlElement("INIT_CODE");
     initXml->addTextElement(initCode);
     xml->addChildElement(initXml);
 
-    // 🔥 NUEVO: VARIABLES
     auto varsXml = new juce::XmlElement("USER_VARIABLES");
     varsXml->addTextElement(userVariables);
     xml->addChildElement(varsXml);
 
-    // COMPONENTS
     auto compsXml = new juce::XmlElement("COMPONENTS");
 
     for (const auto &comp : components) {
@@ -144,9 +138,8 @@ struct Project {
       cXml->setAttribute("max", comp.max);
       cXml->setAttribute("def", comp.def);
 
-      // 🔥 NUEVO (selector)
       cXml->setAttribute("numSteps", comp.numSteps);
-      // 🔥 NUEVO PRO: guardar opciones
+
       if (!comp.options.empty()) {
         juce::String opts;
         for (auto &o : comp.options)
@@ -154,22 +147,18 @@ struct Project {
         cXml->setAttribute("options", opts);
       }
 
-      // legacy
       cXml->setAttribute("role", (int)comp.role);
-
-      // 🔥 NUEVO
       cXml->setAttribute("paramName", comp.paramName);
 
       compsXml->addChildElement(cXml);
     }
 
     xml->addChildElement(compsXml);
-
     return xml;
   }
 
   // ================================
-  // XML IMPORT
+  // XML IMPORT (SIN CAMBIOS)
   // ================================
   void fromXml(juce::XmlElement *xml) {
     if (!xml || xml->getTagName() != "LINUX_PLUGIN_MAKER_PROJECT")
@@ -180,26 +169,20 @@ struct Project {
     pluginURI = xml->getStringAttribute("uri", "");
 
     currentAlgorithm = (AlgorithmType)xml->getIntAttribute("algorithm", 0);
-
-    // 🔥 CARGAR CUSTOM
     isCustom = xml->getBoolAttribute("isCustom", false);
 
     numInputs = xml->getIntAttribute("numInputs", 2);
     numOutputs = xml->getIntAttribute("numOutputs", 2);
 
-    // DSP
     if (auto *dspXml = xml->getChildByName("CUSTOM_DSP"))
       customDspCode = dspXml->getAllSubText();
 
-    // INIT
     if (auto *initXml = xml->getChildByName("INIT_CODE"))
       initCode = initXml->getAllSubText();
 
-    // 🔥 NUEVO: VARIABLES
     if (auto *varsXml = xml->getChildByName("USER_VARIABLES"))
       userVariables = varsXml->getAllSubText();
 
-    // COMPONENTS
     components.clear();
 
     if (auto *compsXml = xml->getChildByName("COMPONENTS")) {
@@ -216,10 +199,8 @@ struct Project {
         c.max = cXml->getDoubleAttribute("max", 1.0);
         c.def = cXml->getDoubleAttribute("def", 0.5);
 
-        // 🔥 SELECTOR
         c.numSteps = cXml->getIntAttribute("numSteps", 3);
 
-        // 🔥 NUEVO PRO: cargar opciones
         juce::String opts = cXml->getStringAttribute("options", "");
         if (opts.isNotEmpty()) {
           juce::StringArray arr;
@@ -229,10 +210,7 @@ struct Project {
               c.options.push_back(o);
         }
 
-        // legacy
         c.role = (ParamRole)cXml->getIntAttribute("role", 0);
-
-        // 🔥 NUEVO
         c.paramName = cXml->getStringAttribute("paramName", "");
 
         components.push_back(c);
@@ -242,7 +220,7 @@ struct Project {
 };
 
 // ================================
-// 🔥 CARGAR EFECTOS DESDE XML
+// 🔥🔥🔥 LOAD EFFECTS (AHORA CON SELECTORES)
 // ================================
 static std::vector<EffectDefinition>
 loadEffectsFromXML(const juce::File &file) {
@@ -256,11 +234,27 @@ loadEffectsFromXML(const juce::File &file) {
         EffectDefinition effect;
         effect.name = effectXml->getStringAttribute("name");
 
-        forEachXmlChildElement(*effectXml, paramXml) {
-          if (paramXml->hasTagName("param")) {
+        forEachXmlChildElement(*effectXml, childXml) {
+
+          // 🔥 PARAMS
+          if (childXml->hasTagName("param")) {
             EffectParam p;
-            p.name = paramXml->getStringAttribute("name");
+            p.name = childXml->getStringAttribute("name");
             effect.params.push_back(p);
+          }
+
+          // 🔥🔥🔥 SELECTORS
+          if (childXml->hasTagName("selector")) {
+            EffectSelector sel;
+            sel.name = childXml->getStringAttribute("name");
+
+            forEachXmlChildElement(*childXml, optXml) {
+              if (optXml->hasTagName("option")) {
+                sel.options.push_back(optXml->getAllSubText());
+              }
+            }
+
+            effect.selectors.push_back(sel);
           }
         }
 

@@ -1982,6 +1982,7 @@
     <ClCompile Include="..\..\..\..\JUCE\modules\juce_gui_extra\juce_gui_extra.cpp">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="..\..\JuceLibraryCode\BinaryData.cpp"/>
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_audio_basics.cpp"/>
     <ClCompile Include="..\..\JuceLibraryCode\include_juce_core.cpp">
       <AdditionalOptions> /bigobj %(AdditionalOptions)</AdditionalOptions>
@@ -2902,9 +2903,11 @@
     <ClInclude Include="..\..\..\..\JUCE\modules\juce_gui_extra\misc\juce_WebControlRelays.h"/>
     <ClInclude Include="..\..\..\..\JUCE\modules\juce_gui_extra\native\juce_NSViewFrameWatcher_mac.h"/>
     <ClInclude Include="..\..\..\..\JUCE\modules\juce_gui_extra\juce_gui_extra.h"/>
+    <ClInclude Include="..\..\JuceLibraryCode\BinaryData.h"/>
     <ClInclude Include="..\..\JuceLibraryCode\JuceHeader.h"/>
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\Source\Data\effects.xml"/>
     <None Include="..\..\..\..\JUCE\modules\juce_core\native\java\README.txt"/>
     <None Include="..\..\..\..\JUCE\modules\juce_core\zip\zlib\JUCE_CHANGES.txt"/>
     <None Include="..\..\..\..\JUCE\modules\juce_graphics\image_formats\jpglib\changes to libjpeg for JUCE.txt"/>

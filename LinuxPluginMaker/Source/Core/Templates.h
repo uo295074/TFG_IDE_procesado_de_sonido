@@ -161,7 +161,9 @@ static void connect_port(LV2_Handle instance, uint32_t port, void* data) {
 static void run(LV2_Handle instance, uint32_t n_samples) {
     Lv2Plugin* plugin = (Lv2Plugin*)instance;
 
+    // 🔥 VECTOR LIMPIO Y ESTABLE
     std::vector<float> currentValues(NUM_PARAMS);
+
     for (int i = 0; i < NUM_PARAMS; ++i)
         currentValues[i] = plugin->paramPtrs[i] ? *(plugin->paramPtrs[i]) : 0.0f;
 
@@ -223,6 +225,8 @@ file(WRITE ${CMAKE_BINARY_DIR}/manifest.ttl
 file(WRITE ${CMAKE_BINARY_DIR}/plugin.ttl 
 "@prefix lv2:  <http://lv2plug.in/ns/lv2core#> .
 @prefix doap: <http://usefulinc.com/ns/doap#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 <{{PLUGIN_URI}}> a lv2:Plugin, lv2:AudioPlugin ;
     doap:name \"{{PLUGIN_NAME}}\" ;
     lv2:port {{AUDIO_PORTS_TTL}}

@@ -5,7 +5,9 @@
   <MAINGROUP id="s3Uog0" name="LinuxPluginMaker">
     <GROUP id="{07C4F8FA-2F0E-6239-F63E-582E74D37D56}" name="Source">
       <GROUP id="{FD81B547-895F-F9B4-334D-64511D83C87E}" name="UI"/>
-      <GROUP id="{9BC703A1-5F6E-21FB-0E0F-9467A2C5693A}" name="Data"/>
+      <GROUP id="{9BC703A1-5F6E-21FB-0E0F-9467A2C5693A}" name="Data">
+        <FILE id="t2kPG3" name="effects.xml" compile="0" resource="1" file="Source/Data/effects.xml"/>
+      </GROUP>
       <GROUP id="{12CF2452-D0F7-261C-6F94-8C987CFC79A4}" name="Core">
         <FILE id="NRphFN" name="CodeEditorPanel.h" compile="0" resource="0"
               file="Source/Core/CodeEditorPanel.h"/>

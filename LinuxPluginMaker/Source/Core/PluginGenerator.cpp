@@ -92,15 +92,21 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
       // 🔥 PROPERTIES
       ttlPorts += "lv2:portProperty lv2:integer , lv2:enumeration ; ";
 
-      // 🔥 LABELS (scalePoints)
+      // 🔥🔥🔥 FIX REAL: scalePoints bien formateados
       if (!comp.options.empty()) {
         ttlPorts += "lv2:scalePoint ";
+
         for (int i = 0; i < comp.options.size(); ++i) {
-          ttlPorts += "[ rdfs:label \\\"" + comp.options[i] +
-                      "\\\" ; rdf:value " + juce::String(i) + " ]";
+          ttlPorts += "[ ";
+          ttlPorts += "rdfs:label \\\"" + comp.options[i] + "\\\" ; ";
+          ttlPorts += "rdf:value " + juce::String(i) + " ";
+          ttlPorts += "]";
+
           if (i < comp.options.size() - 1)
             ttlPorts += " , ";
         }
+
+        ttlPorts += " ; "; // 🔥 IMPORTANTE (no coma, no punto)
       }
     }
 
@@ -121,11 +127,15 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
     case PluginData::AlgorithmType::Distortion:
       dspCode = R"(
 
+    auto getParam = [&](int index, float def)
+{
+    return (index < (int)params.size()) ? params[index] : def;
+};
     float drive = params.size() > 0 ? params[0] : 1.0f;
     float mix   = params.size() > 1 ? params[1] : 1.0f;
 
-    // 🔥 BUSCAR selector (último parámetro normalmente)
-    int mode = params.size() > 2 ? (int)params[2] : 0;
+    int modeIndex = (int)params.size() - 1;
+    int mode = modeIndex >= 0 ? (int)params[modeIndex] : 0;
 
     for (int ch = 0; ch < totalNumInputChannels; ++ch)
     {
@@ -139,15 +149,9 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
 
             switch (mode)
             {
-                case 0: // Soft
-                    wet = std::tanh(x);
-                    break;
-
-                case 1: // Hard
-                    wet = juce::jlimit(-1.0f, 1.0f, x);
-                    break;
-
-                case 2: // Foldback
+                case 0: wet = std::tanh(x); break;
+                case 1: wet = juce::jlimit(-1.0f, 1.0f, x); break;
+                case 2:
                     if (x > 1.0f || x < -1.0f)
                         x = std::fabs(std::fabs(fmod(x - 1.0f, 4.0f)) - 2.0f) - 1.0f;
                     wet = x;
@@ -158,12 +162,16 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
         }
     }
 
-  )";
+)";
       break;
 
     case PluginData::AlgorithmType::Gain:
       dspCode = R"(
 
+     auto getParam = [&](int index, float def)
+{
+    return (index < (int)params.size()) ? params[index] : def;
+};
         float gain = params.size() > 0 ? params[0] : 1.0f;
 
         for (int ch = 0; ch < totalNumInputChannels; ++ch)
@@ -177,6 +185,101 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
         }
 
     )";
+      break;
+
+    case PluginData::AlgorithmType::Filter:
+      dspCode = R"(
+
+      auto getParam = [&](int index, float def)
+{
+    return (index < (int)params.size()) ? params[index] : def;
+};
+    float cutoffNorm = getParam(0, 0.5f);
+int mode = (int)getParam(params.size() - 1, 0.0f);
+
+// 🔥 evitar extremos
+cutoffNorm = juce::jlimit(0.01f, 0.99f, cutoffNorm);
+
+// 🔥 frecuencia log (MUY IMPORTANTE)
+float cutoff = 20.0f * std::pow(1000.0f, cutoffNorm);
+
+float sampleRate = getSampleRate();
+float x, y = 0.0f;
+
+float a = std::exp(-2.0f * juce::MathConstants<float>::pi * cutoff / sampleRate);
+
+for (int ch = 0; ch < totalNumInputChannels; ++ch)
+{
+    auto* data = buffer.getWritePointer(ch);
+    float z = 0.0f;
+
+    for (int i = 0; i < buffer.getNumSamples(); ++i)
+    {
+        x = data[i];
+
+        // 🔥 filtro estable
+        z = (1.0f - a) * x + a * z;
+
+        switch (mode)
+        {
+            case 0: y = z; break;         // Low-pass
+            case 1: y = x - z; break;     // High-pass
+            case 2: y = (x - z) * z; break; // pseudo band-pass
+        }
+
+        data[i] = y;
+    }
+}
+
+)";
+      break;
+
+    case PluginData::AlgorithmType::Tremolo:
+      dspCode = R"(
+
+      auto getParam = [&](int index, float def)
+{
+    return (index < (int)params.size()) ? params[index] : def;
+};
+    float rateNorm  = getParam(0, 0.5f);
+float depth     = getParam(1, 0.5f);
+int mode        = (int)getParam(params.size() - 1, 0.0f);
+
+// 🔥 evitar valores locos
+depth = juce::jlimit(0.0f, 1.0f, depth);
+
+float rate = 0.1f + rateNorm * 10.0f;
+
+float phase = 0.0f;
+float phaseInc = 2.0f * juce::MathConstants<float>::pi * rate / getSampleRate();
+
+for (int ch = 0; ch < totalNumInputChannels; ++ch)
+{
+    auto* data = buffer.getWritePointer(ch);
+    float p = phase;
+
+    for (int i = 0; i < buffer.getNumSamples(); ++i)
+    {
+        float lfo = 0.0f;
+
+        switch (mode)
+        {
+            case 0: lfo = 0.5f * (1.0f + std::sin(p)); break;
+            case 1: lfo = (std::sin(p) > 0.0f) ? 1.0f : 0.0f; break;
+            case 2: lfo = std::abs(std::sin(p)); break;
+        }
+
+        float mod = 1.0f - depth + depth * lfo;
+
+        data[i] *= mod;
+
+        p += phaseInc;
+        if (p > 2.0f * juce::MathConstants<float>::pi)
+            p -= 2.0f * juce::MathConstants<float>::pi;
+    }
+}
+
+)";
       break;
 
     default:
@@ -216,6 +319,25 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
                                         juce::String(project.numOutputs));
   editorContent = editorContent.replace(
       "{{NUM_PARAMS}}", juce::String(project.components.size()));
+
+  // 🔥🔥🔥 GENERAR PARAM_NAMES
+  juce::String paramNamesStr;
+
+  for (const auto &comp : project.components) {
+    if (comp.type == PluginData::ComponentType::Slider ||
+        comp.type == PluginData::ComponentType::Knob ||
+        comp.type == PluginData::ComponentType::Selector) {
+      juce::String name =
+          comp.paramName.isNotEmpty() ? comp.paramName : comp.symbol;
+      paramNamesStr += "\"" + name + "\", ";
+    }
+  }
+
+  // 🔥 IMPORTANTE: quitar última coma
+  if (paramNamesStr.endsWith(", "))
+    paramNamesStr = paramNamesStr.dropLastCharacters(2);
+
+  editorContent = editorContent.replace("{{PARAM_NAMES}}", paramNamesStr);
 
   juce::String cmakeContent = Templates::cmakeFile;
   cmakeContent = cmakeContent.replace("{{AUDIO_PORTS_TTL}}", audioPortsTtl);

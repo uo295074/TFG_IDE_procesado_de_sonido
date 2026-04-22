@@ -19,7 +19,15 @@ public:
         juce::String(index);
 
     // 🔥 NUEVO
-    paramName = "None";
+    // 🔥 CAMBIO AQUÍ
+    if (type == PluginData::ComponentType::Slider ||
+        type == PluginData::ComponentType::Knob) {
+      paramName = name; // 🔥 usar nombre visible
+    } else if (type == PluginData::ComponentType::Selector) {
+      paramName = "Mode"; // 🔥 estándar para selectores
+    } else {
+      paramName = name;
+    }
 
     // ⚠️ LEGACY
     role = PluginData::ParamRole::None;
