@@ -26,6 +26,8 @@ public:
   void menuItemSelected(int menuItemID, int topLevelMenuIndex) override;
 
 private:
+  void syncPresetDspCode();
+
   // 3. El componente visual de la barra
   juce::MenuBarComponent menuBar;
 

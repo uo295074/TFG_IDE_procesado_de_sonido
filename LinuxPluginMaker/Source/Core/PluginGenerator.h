@@ -12,6 +12,8 @@ class PluginGenerator {
 public:
   PluginGenerator();
 
+  static juce::String getBuiltinDspCode(PluginData::AlgorithmType algorithm);
+
   void createPluginFiles(PluginData::Project &project);
 
   // --- NUEVO MÉTODO: Compila e instala automáticamente ---

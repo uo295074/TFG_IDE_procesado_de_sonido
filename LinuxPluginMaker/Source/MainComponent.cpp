@@ -130,6 +130,7 @@ MainComponent::MainComponent() : menuBar(this) {
   };
 
   propertiesPanel.onDataChanged = [this]() {
+    syncPresetDspCode();
     canvas.repaint(); // 🔥🔥🔥 refresh selector dinámico
     canvas.refreshAutoParams();
   };
@@ -137,6 +138,7 @@ MainComponent::MainComponent() : menuBar(this) {
   propertiesPanel.inspectProject(&project);
   propertiesPanel.repaint();
   propertiesPanel.setVisible(true);
+  syncPresetDspCode();
 
   addAndMakeVisible(generateBtn);
   generateBtn.setColour(juce::TextButton::buttonColourId,
@@ -390,6 +392,7 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
 
     project.currentAlgorithm = PluginData::AlgorithmType::Distortion;
     project.isCustom = false;
+    syncPresetDspCode();
 
     static int id = 1;
     canvas.addElement(PluginData::ComponentType::Slider, id++, "Drive");
@@ -411,6 +414,7 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
 
     project.currentAlgorithm = PluginData::AlgorithmType::Filter;
     project.isCustom = false;
+    syncPresetDspCode();
 
     static int id = 1;
     canvas.addElement(PluginData::ComponentType::Slider, id++, "Cutoff");
@@ -431,6 +435,7 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
 
     project.currentAlgorithm = PluginData::AlgorithmType::Tremolo;
     project.isCustom = false;
+    syncPresetDspCode();
 
     static int id = 1;
     canvas.addElement(PluginData::ComponentType::Slider, id++, "Rate");
@@ -493,4 +498,13 @@ void MainComponent::resized() {
   generateBtn.setBounds(area.removeFromBottom(50));
   area.removeFromBottom(10);
   canvas.setBounds(area);
+}
+
+void MainComponent::syncPresetDspCode() {
+  if (project.isCustom)
+    return;
+
+  project.currentAlgorithm =
+      (PluginData::AlgorithmType)project.currentEffectIndex;
+  project.customDspCode = PluginGenerator::getBuiltinDspCode(project.currentAlgorithm);
 }

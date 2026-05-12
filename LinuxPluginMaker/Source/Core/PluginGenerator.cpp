@@ -13,6 +13,234 @@ PluginGenerator::PluginGenerator() {
       juce::File::getCurrentWorkingDirectory().getChildFile("GeneratedPlugins");
 }
 
+juce::String
+PluginGenerator::getBuiltinDspCode(PluginData::AlgorithmType algorithm) {
+  switch (algorithm) {
+  case PluginData::AlgorithmType::Distortion:
+    return R"(
+
+    auto getParam = [&](int index, float def)
+{
+    return (index < (int)params.size()) ? params[index] : def;
+};
+    float drive = params.size() > 0 ? params[0] : 1.0f;
+    float mix   = params.size() > 1 ? params[1] : 1.0f;
+
+    int modeIndex = (int)params.size() - 1;
+    int mode = modeIndex >= 0 ? (int)params[modeIndex] : 0;
+
+    for (int ch = 0; ch < totalNumInputChannels; ++ch)
+    {
+        auto* data = buffer.getWritePointer(ch);
+
+        for (int i = 0; i < buffer.getNumSamples(); ++i)
+        {
+            float dry = data[i];
+            float x = dry * drive * 5.0f;
+            float wet = x;
+
+            switch (mode)
+            {
+                case 0: wet = std::tanh(x); break;
+                case 1: wet = juce::jlimit(-1.0f, 1.0f, x); break;
+                case 2:
+                    if (x > 1.0f || x < -1.0f)
+                        x = std::fabs(std::fabs(fmod(x - 1.0f, 4.0f)) - 2.0f) - 1.0f;
+                    wet = x;
+                    break;
+            }
+
+            data[i] = dry * (1.0f - mix) + wet * mix;
+        }
+    }
+
+)";
+
+  case PluginData::AlgorithmType::Gain:
+    return R"(
+
+     auto getParam = [&](int index, float def)
+{
+    return (index < (int)params.size()) ? params[index] : def;
+};
+        float gain = params.size() > 0 ? params[0] : 1.0f;
+
+        for (int ch = 0; ch < totalNumInputChannels; ++ch)
+        {
+            auto* data = buffer.getWritePointer(ch);
+
+            for (int i = 0; i < buffer.getNumSamples(); ++i)
+            {
+                data[i] *= gain;
+            }
+        }
+
+    )";
+
+  case PluginData::AlgorithmType::Filter:
+    return R"(
+
+auto getParam = [&](int index, float def)
+{
+    return (index < (int)params.size()) ? params[index] : def;
+};
+
+float cutoffNorm = getParam(0, 0.5f);
+int mode = (int)getParam(params.size() - 1, 0.0f);
+
+// 🔥 limitar rango útil
+cutoffNorm = juce::jlimit(0.001f, 0.999f, cutoffNorm);
+
+// 🔥 mapeo log correcto (20Hz - 20kHz)
+float cutoff = 20.0f * std::pow(1000.0f, cutoffNorm);
+
+// 🔥 coeficiente estable
+float x = std::exp(-2.0f * juce::MathConstants<float>::pi * cutoff / getSampleRate());
+
+// 🔥 estado persistente por canal
+static float zL = 0.0f;
+static float zR = 0.0f;
+
+for (int ch = 0; ch < totalNumInputChannels; ++ch)
+{
+    auto* data = buffer.getWritePointer(ch);
+
+    float& z = (ch == 0) ? zL : zR;
+
+    for (int i = 0; i < buffer.getNumSamples(); ++i)
+    {
+        float in = data[i];
+
+        // 🔥 low-pass base
+        z = (1.0f - x) * in + x * z;
+
+        float out = in;
+
+        switch (mode)
+        {
+            case 0: out = z; break;           // Low-pass
+            case 1: out = in - z; break;      // High-pass
+            case 2: out = (in - z) * z; break; // pseudo band-pass
+        }
+
+        data[i] = out;
+    }
+}
+
+)";
+
+  case PluginData::AlgorithmType::Tremolo:
+    return R"(
+
+      auto getParam = [&](int index, float def)
+{
+    return (index < (int)params.size()) ? params[index] : def;
+};
+    float rateNorm  = getParam(0, 0.5f);
+float depth     = getParam(1, 0.5f);
+int mode        = (int)getParam(params.size() - 1, 0.0f);
+
+// 🔥 evitar valores locos
+depth = juce::jlimit(0.0f, 1.0f, depth);
+
+float rate = 0.1f + rateNorm * 10.0f;
+
+float phase = 0.0f;
+float phaseInc = 2.0f * juce::MathConstants<float>::pi * rate / getSampleRate();
+
+for (int ch = 0; ch < totalNumInputChannels; ++ch)
+{
+    auto* data = buffer.getWritePointer(ch);
+    float p = phase;
+
+    for (int i = 0; i < buffer.getNumSamples(); ++i)
+    {
+        float lfo = 0.0f;
+
+        switch (mode)
+        {
+            case 0: lfo = 0.5f * (1.0f + std::sin(p)); break;
+            case 1: lfo = (std::sin(p) > 0.0f) ? 1.0f : 0.0f; break;
+            case 2: lfo = std::abs(std::sin(p)); break;
+        }
+
+        float mod = 1.0f - depth + depth * lfo;
+
+        data[i] *= mod;
+
+        p += phaseInc;
+        if (p > 2.0f * juce::MathConstants<float>::pi)
+            p -= 2.0f * juce::MathConstants<float>::pi;
+    }
+}
+
+)";
+
+  case PluginData::AlgorithmType::Reverb:
+    return R"(
+
+auto getParam = [&](int index, float def)
+{
+    return (index < (int)params.size()) ? params[index] : def;
+};
+
+float mix   = getParam(0, 0.5f);
+float decay = getParam(1, 0.5f);
+
+mix   = juce::jlimit(0.0f, 1.0f, mix);
+decay = juce::jlimit(0.0f, 0.95f, decay);
+
+const int delaySamples = (int)(0.2f * getSampleRate());
+
+// 🔥 buffers fijos (SIN vector)
+static float delayBufferL[48000] = {0}; // hasta 1s aprox
+static float delayBufferR[48000] = {0};
+
+static int writeIndex = 0;
+
+for (int ch = 0; ch < totalNumInputChannels; ++ch)
+{
+    auto* data = buffer.getWritePointer(ch);
+
+    float* delayBuffer = (ch == 0) ? delayBufferL : delayBufferR;
+
+    for (int i = 0; i < buffer.getNumSamples(); ++i)
+    {
+        float in = data[i];
+
+        float delayed = delayBuffer[writeIndex];
+
+        float out = in * (1.0f - mix) + delayed * mix;
+
+        delayBuffer[writeIndex] = in + delayed * decay;
+
+        data[i] = out;
+
+        writeIndex++;
+        if (writeIndex >= delaySamples)
+            writeIndex = 0;
+    }
+}
+
+)";
+
+  default:
+    return R"(
+
+        for (int ch = 0; ch < totalNumInputChannels; ++ch)
+        {
+            auto* data = buffer.getWritePointer(ch);
+
+            for (int i = 0; i < buffer.getNumSamples(); ++i)
+            {
+                data[i] *= 1.0f;
+            }
+        }
+
+    )";
+  }
+}
+
 void PluginGenerator::createPluginFiles(PluginData::Project &project) {
   if (!desktopDir.exists())
     desktopDir.createDirectory();
@@ -134,236 +362,7 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
   if (project.isCustom) {
     dspCode = project.customDspCode;
   } else {
-    switch (project.currentAlgorithm) {
-
-    case PluginData::AlgorithmType::Distortion:
-      dspCode = R"(
-
-    auto getParam = [&](int index, float def)
-{
-    return (index < (int)params.size()) ? params[index] : def;
-};
-    float drive = params.size() > 0 ? params[0] : 1.0f;
-    float mix   = params.size() > 1 ? params[1] : 1.0f;
-
-    int modeIndex = (int)params.size() - 1;
-    int mode = modeIndex >= 0 ? (int)params[modeIndex] : 0;
-
-    for (int ch = 0; ch < totalNumInputChannels; ++ch)
-    {
-        auto* data = buffer.getWritePointer(ch);
-
-        for (int i = 0; i < buffer.getNumSamples(); ++i)
-        {
-            float dry = data[i];
-            float x = dry * drive * 5.0f;
-            float wet = x;
-
-            switch (mode)
-            {
-                case 0: wet = std::tanh(x); break;
-                case 1: wet = juce::jlimit(-1.0f, 1.0f, x); break;
-                case 2:
-                    if (x > 1.0f || x < -1.0f)
-                        x = std::fabs(std::fabs(fmod(x - 1.0f, 4.0f)) - 2.0f) - 1.0f;
-                    wet = x;
-                    break;
-            }
-
-            data[i] = dry * (1.0f - mix) + wet * mix;
-        }
-    }
-
-)";
-      break;
-
-    case PluginData::AlgorithmType::Gain:
-      dspCode = R"(
-
-     auto getParam = [&](int index, float def)
-{
-    return (index < (int)params.size()) ? params[index] : def;
-};
-        float gain = params.size() > 0 ? params[0] : 1.0f;
-
-        for (int ch = 0; ch < totalNumInputChannels; ++ch)
-        {
-            auto* data = buffer.getWritePointer(ch);
-
-            for (int i = 0; i < buffer.getNumSamples(); ++i)
-            {
-                data[i] *= gain;
-            }
-        }
-
-    )";
-      break;
-
-    case PluginData::AlgorithmType::Filter:
-      dspCode = R"(
-
-auto getParam = [&](int index, float def)
-{
-    return (index < (int)params.size()) ? params[index] : def;
-};
-
-float cutoffNorm = getParam(0, 0.5f);
-int mode = (int)getParam(params.size() - 1, 0.0f);
-
-// 🔥 limitar rango útil
-cutoffNorm = juce::jlimit(0.001f, 0.999f, cutoffNorm);
-
-// 🔥 mapeo log correcto (20Hz - 20kHz)
-float cutoff = 20.0f * std::pow(1000.0f, cutoffNorm);
-
-// 🔥 coeficiente estable
-float x = std::exp(-2.0f * juce::MathConstants<float>::pi * cutoff / getSampleRate());
-
-// 🔥 estado persistente por canal
-static float zL = 0.0f;
-static float zR = 0.0f;
-
-for (int ch = 0; ch < totalNumInputChannels; ++ch)
-{
-    auto* data = buffer.getWritePointer(ch);
-
-    float& z = (ch == 0) ? zL : zR;
-
-    for (int i = 0; i < buffer.getNumSamples(); ++i)
-    {
-        float in = data[i];
-
-        // 🔥 low-pass base
-        z = (1.0f - x) * in + x * z;
-
-        float out = in;
-
-        switch (mode)
-        {
-            case 0: out = z; break;           // Low-pass
-            case 1: out = in - z; break;      // High-pass
-            case 2: out = (in - z) * z; break; // pseudo band-pass
-        }
-
-        data[i] = out;
-    }
-}
-
-)";
-      break;
-
-    case PluginData::AlgorithmType::Tremolo:
-      dspCode = R"(
-
-      auto getParam = [&](int index, float def)
-{
-    return (index < (int)params.size()) ? params[index] : def;
-};
-    float rateNorm  = getParam(0, 0.5f);
-float depth     = getParam(1, 0.5f);
-int mode        = (int)getParam(params.size() - 1, 0.0f);
-
-// 🔥 evitar valores locos
-depth = juce::jlimit(0.0f, 1.0f, depth);
-
-float rate = 0.1f + rateNorm * 10.0f;
-
-float phase = 0.0f;
-float phaseInc = 2.0f * juce::MathConstants<float>::pi * rate / getSampleRate();
-
-for (int ch = 0; ch < totalNumInputChannels; ++ch)
-{
-    auto* data = buffer.getWritePointer(ch);
-    float p = phase;
-
-    for (int i = 0; i < buffer.getNumSamples(); ++i)
-    {
-        float lfo = 0.0f;
-
-        switch (mode)
-        {
-            case 0: lfo = 0.5f * (1.0f + std::sin(p)); break;
-            case 1: lfo = (std::sin(p) > 0.0f) ? 1.0f : 0.0f; break;
-            case 2: lfo = std::abs(std::sin(p)); break;
-        }
-
-        float mod = 1.0f - depth + depth * lfo;
-
-        data[i] *= mod;
-
-        p += phaseInc;
-        if (p > 2.0f * juce::MathConstants<float>::pi)
-            p -= 2.0f * juce::MathConstants<float>::pi;
-    }
-}
-
-)";
-      break;
-
-    case PluginData::AlgorithmType::Reverb:
-      dspCode = R"(
-
-auto getParam = [&](int index, float def)
-{
-    return (index < (int)params.size()) ? params[index] : def;
-};
-
-float mix   = getParam(0, 0.5f);
-float decay = getParam(1, 0.5f);
-
-mix   = juce::jlimit(0.0f, 1.0f, mix);
-decay = juce::jlimit(0.0f, 0.95f, decay);
-
-const int delaySamples = (int)(0.2f * getSampleRate());
-
-// 🔥 buffers fijos (SIN vector)
-static float delayBufferL[48000] = {0}; // hasta 1s aprox
-static float delayBufferR[48000] = {0};
-
-static int writeIndex = 0;
-
-for (int ch = 0; ch < totalNumInputChannels; ++ch)
-{
-    auto* data = buffer.getWritePointer(ch);
-
-    float* delayBuffer = (ch == 0) ? delayBufferL : delayBufferR;
-
-    for (int i = 0; i < buffer.getNumSamples(); ++i)
-    {
-        float in = data[i];
-
-        float delayed = delayBuffer[writeIndex];
-
-        float out = in * (1.0f - mix) + delayed * mix;
-
-        delayBuffer[writeIndex] = in + delayed * decay;
-
-        data[i] = out;
-
-        writeIndex++;
-        if (writeIndex >= delaySamples)
-            writeIndex = 0;
-    }
-}
-
-)";
-      break;
-    default:
-      dspCode = R"(
-
-        for (int ch = 0; ch < totalNumInputChannels; ++ch)
-        {
-            auto* data = buffer.getWritePointer(ch);
-
-            for (int i = 0; i < buffer.getNumSamples(); ++i)
-            {
-                data[i] *= 1.0f;
-            }
-        }
-
-    )";
-      break;
-    }
+    dspCode = getBuiltinDspCode(project.currentAlgorithm);
   }
 
   // ================================
