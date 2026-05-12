@@ -9,8 +9,8 @@
 #include "Templates.h"
 
 PluginGenerator::PluginGenerator() {
-  desktopDir = juce::File::getSpecialLocation(juce::File::userDesktopDirectory)
-                   .getChildFile("MiEfectoDSP");
+  desktopDir =
+      juce::File::getCurrentWorkingDirectory().getChildFile("GeneratedPlugins");
 }
 
 void PluginGenerator::createPluginFiles(PluginData::Project &project) {
@@ -20,6 +20,18 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
   juce::File sourceDir = desktopDir.getChildFile("Source");
   if (!sourceDir.exists())
     sourceDir.createDirectory();
+
+  juce::File juceSource =
+      juce::File::getSpecialLocation(juce::File::currentApplicationFile)
+          .getParentDirectory()
+          .getChildFile("JUCE");
+
+  juce::File juceDest = desktopDir.getChildFile("JUCE");
+
+  if (juceSource.exists()) {
+    juceDest.deleteRecursively();
+    juceSource.copyDirectoryTo(juceDest);
+  }
 
   // ================================
   // 1. AUDIO PORTS
@@ -190,44 +202,50 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
     case PluginData::AlgorithmType::Filter:
       dspCode = R"(
 
-      auto getParam = [&](int index, float def)
+auto getParam = [&](int index, float def)
 {
     return (index < (int)params.size()) ? params[index] : def;
 };
-    float cutoffNorm = getParam(0, 0.5f);
+
+float cutoffNorm = getParam(0, 0.5f);
 int mode = (int)getParam(params.size() - 1, 0.0f);
 
-// 🔥 evitar extremos
-cutoffNorm = juce::jlimit(0.01f, 0.99f, cutoffNorm);
+// 🔥 limitar rango útil
+cutoffNorm = juce::jlimit(0.001f, 0.999f, cutoffNorm);
 
-// 🔥 frecuencia log (MUY IMPORTANTE)
+// 🔥 mapeo log correcto (20Hz - 20kHz)
 float cutoff = 20.0f * std::pow(1000.0f, cutoffNorm);
 
-float sampleRate = getSampleRate();
-float x, y = 0.0f;
+// 🔥 coeficiente estable
+float x = std::exp(-2.0f * juce::MathConstants<float>::pi * cutoff / getSampleRate());
 
-float a = std::exp(-2.0f * juce::MathConstants<float>::pi * cutoff / sampleRate);
+// 🔥 estado persistente por canal
+static float zL = 0.0f;
+static float zR = 0.0f;
 
 for (int ch = 0; ch < totalNumInputChannels; ++ch)
 {
     auto* data = buffer.getWritePointer(ch);
-    float z = 0.0f;
+
+    float& z = (ch == 0) ? zL : zR;
 
     for (int i = 0; i < buffer.getNumSamples(); ++i)
     {
-        x = data[i];
+        float in = data[i];
 
-        // 🔥 filtro estable
-        z = (1.0f - a) * x + a * z;
+        // 🔥 low-pass base
+        z = (1.0f - x) * in + x * z;
+
+        float out = in;
 
         switch (mode)
         {
-            case 0: y = z; break;         // Low-pass
-            case 1: y = x - z; break;     // High-pass
-            case 2: y = (x - z) * z; break; // pseudo band-pass
+            case 0: out = z; break;           // Low-pass
+            case 1: out = in - z; break;      // High-pass
+            case 2: out = (in - z) * z; break; // pseudo band-pass
         }
 
-        data[i] = y;
+        data[i] = out;
     }
 }
 
@@ -282,6 +300,54 @@ for (int ch = 0; ch < totalNumInputChannels; ++ch)
 )";
       break;
 
+    case PluginData::AlgorithmType::Reverb:
+      dspCode = R"(
+
+auto getParam = [&](int index, float def)
+{
+    return (index < (int)params.size()) ? params[index] : def;
+};
+
+float mix   = getParam(0, 0.5f);
+float decay = getParam(1, 0.5f);
+
+mix   = juce::jlimit(0.0f, 1.0f, mix);
+decay = juce::jlimit(0.0f, 0.95f, decay);
+
+const int delaySamples = (int)(0.2f * getSampleRate());
+
+// 🔥 buffers fijos (SIN vector)
+static float delayBufferL[48000] = {0}; // hasta 1s aprox
+static float delayBufferR[48000] = {0};
+
+static int writeIndex = 0;
+
+for (int ch = 0; ch < totalNumInputChannels; ++ch)
+{
+    auto* data = buffer.getWritePointer(ch);
+
+    float* delayBuffer = (ch == 0) ? delayBufferL : delayBufferR;
+
+    for (int i = 0; i < buffer.getNumSamples(); ++i)
+    {
+        float in = data[i];
+
+        float delayed = delayBuffer[writeIndex];
+
+        float out = in * (1.0f - mix) + delayed * mix;
+
+        delayBuffer[writeIndex] = in + delayed * decay;
+
+        data[i] = out;
+
+        writeIndex++;
+        if (writeIndex >= delaySamples)
+            writeIndex = 0;
+    }
+}
+
+)";
+      break;
     default:
       dspCode = R"(
 

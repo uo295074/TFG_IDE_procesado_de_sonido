@@ -28,7 +28,7 @@ private:
     double currentSampleRate = 44100.0;
     int currentBlockSize = 512;
 
-    // 🔥 VARIABLES USUARIO
+    //VARIABLES USUARIO
     {{USER_VARS}}
 };
 )jv";
@@ -48,7 +48,7 @@ void DspEngine::prepare(double sampleRate, int samplesPerBlock)
     currentSampleRate = sampleRate;
     currentBlockSize = samplesPerBlock;
 
-    // 🔥 INIT USUARIO
+    //INIT USUARIO
     {{INIT_CODE}}
 }
 
@@ -69,7 +69,7 @@ void DspEngine::process(float* const* inputChannelData, float* const* outputChan
     int totalNumInputChannels = numOutChannels;
 
     // ==========================================================================
-    // 🔥 AYUDA PARA SELECTORES (IMPORTANTE)
+    // AYUDA PARA SELECTORES (IMPORTANTE)
     // ==========================================================================
     // Los parámetros discretos (Selector) se usan así:
     //
@@ -94,7 +94,7 @@ void DspEngine::process(float* const* inputChannelData, float* const* outputChan
     // - El rango viene definido por numSteps en el IDE
     // ==========================================================================
 
-    // 🔥 DSP USUARIO
+    //DSP USUARIO
     {{DSP_CODE}}
 }
 )jv";
@@ -205,7 +205,7 @@ set(JUCE_WEB_BROWSER OFF CACHE BOOL "Disable Web Browser" FORCE)
 add_compile_definitions(JUCE_USE_CURL=0)
 add_compile_definitions(JUCE_WEB_BROWSER=0)
 
-add_subdirectory(/media/sf_TFG_COMPARTIDO/JUCE subprojects/juce)
+add_subdirectory(JUCE)
 
 add_library(DspLib STATIC Source/PluginProcessor.cpp)
 target_link_libraries(DspLib PRIVATE juce::juce_core juce::juce_audio_basics)

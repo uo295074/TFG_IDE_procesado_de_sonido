@@ -7,7 +7,7 @@ namespace PluginData {
 // ================================
 // ENUMS (mantengo por compatibilidad)
 // ================================
-enum class AlgorithmType { Gain, Distortion, Tremolo, Filter, Custom };
+enum class AlgorithmType { Gain, Distortion, Filter, Tremolo, Reverb, Custom };
 
 // 🔥 AÑADIDO Selector
 enum class ComponentType { Slider, Toggle, Knob, Selector };
@@ -83,7 +83,7 @@ struct Project {
   int numInputs = 2;
   int numOutputs = 2;
 
-  juce::String customDspCode =
+  juce::String customDspCode = juce::String::fromUTF8(
       "// --- TU CÓDIGO DSP AQUÍ ---\n"
       "for (int channel = 0; channel < totalNumInputChannels; ++channel)\n"
       "{\n"
@@ -91,11 +91,13 @@ struct Project {
       "    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)\n"
       "    {\n"
       "    }\n"
-      "}\n";
+      "}\n");
 
   std::vector<Component> components;
 
-  Project() { initCode = "// Código de inicialización\n"; }
+  Project() {
+    initCode = juce::String::fromUTF8("// Código de inicialización\n");
+  }
 
   // ================================
   // XML EXPORT (SIN CAMBIOS)

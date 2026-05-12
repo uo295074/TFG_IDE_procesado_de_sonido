@@ -26,11 +26,11 @@ MainComponent::MainComponent() : menuBar(this) {
   // 🔥 NUEVO: CARGA DE EFFECTS.XML
   // ================================
   {
-    juce::File xmlFile = juce::File::getCurrentWorkingDirectory()
-                             .getParentDirectory() // build/
-                             .getParentDirectory() // LinuxMakefile/
-                             .getChildFile("Source/Data/effects.xml");
-
+    juce::File xmlFile =
+        juce::File::getSpecialLocation(juce::File::currentExecutableFile)
+            .getParentDirectory()
+            .getChildFile("Data")
+            .getChildFile("effects.xml");
     juce::Logger::writeToLog("Ruta XML: " + xmlFile.getFullPathName());
 
     if (xmlFile.existsAsFile()) {
@@ -164,7 +164,8 @@ MainComponent::MainComponent() : menuBar(this) {
     }
     generator.createPluginFiles(project);
 
-    generateBtn.setButtonText("Compilando de fondo... ¡Espera!");
+    generateBtn.setButtonText(
+        juce::String::fromUTF8("Compilando de fondo... ¡Espera!"));
     generateBtn.setEnabled(false);
 
     std::thread([this]() {
