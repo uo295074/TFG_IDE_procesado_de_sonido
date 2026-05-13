@@ -38,4 +38,11 @@
   <param name="Decay"/>
 </effect>
 
+  <!-- 🔥 DELAY EFFECT -->
+  <effect name="Delay">
+    <param name="Time"/>
+    <param name="Feedback"/>
+    <param name="Mix"/>
+  </effect>
+
 </effects>

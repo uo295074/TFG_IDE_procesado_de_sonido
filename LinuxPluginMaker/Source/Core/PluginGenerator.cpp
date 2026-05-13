@@ -224,6 +224,64 @@ for (int ch = 0; ch < totalNumInputChannels; ++ch)
 
 )";
 
+  // 🔥 DELAY EFFECT
+  case PluginData::AlgorithmType::Delay:
+    return R"(
+
+auto getParam = [&](int index, float def)
+{
+    return (index < (int)params.size()) ? params[index] : def;
+};
+
+float timeNorm = getParam(0, 0.5f);
+float feedback = getParam(1, 0.35f);
+float mix = getParam(2, 0.35f);
+
+timeNorm = juce::jlimit(0.0f, 1.0f, timeNorm);
+feedback = juce::jlimit(0.0f, 0.95f, feedback);
+mix = juce::jlimit(0.0f, 1.0f, mix);
+
+constexpr int maxDelaySamples = 96000;
+float delayMs = 10.0f + timeNorm * 790.0f;
+int delaySamples = (int)((delayMs / 1000.0f) * getSampleRate());
+delaySamples = juce::jlimit(1, maxDelaySamples - 1, delaySamples);
+
+static float delayBufferL[maxDelaySamples] = {0.0f};
+static float delayBufferR[maxDelaySamples] = {0.0f};
+static int writeIndex = 0;
+
+int localWriteIndex = writeIndex;
+
+for (int ch = 0; ch < totalNumInputChannels; ++ch)
+{
+    auto* data = buffer.getWritePointer(ch);
+    float* delayBuffer = (ch == 0) ? delayBufferL : delayBufferR;
+    int channelWriteIndex = localWriteIndex;
+
+    for (int i = 0; i < buffer.getNumSamples(); ++i)
+    {
+        int readIndex = channelWriteIndex - delaySamples;
+        if (readIndex < 0)
+            readIndex += maxDelaySamples;
+
+        float input = data[i];
+        float delayed = delayBuffer[readIndex];
+
+        delayBuffer[channelWriteIndex] = input + delayed * feedback;
+        data[i] = input * (1.0f - mix) + delayed * mix;
+
+        channelWriteIndex++;
+        if (channelWriteIndex >= maxDelaySamples)
+            channelWriteIndex = 0;
+    }
+}
+
+writeIndex = localWriteIndex + buffer.getNumSamples();
+while (writeIndex >= maxDelaySamples)
+    writeIndex -= maxDelaySamples;
+
+)";
+
   default:
     return R"(
 

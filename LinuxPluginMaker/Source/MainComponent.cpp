@@ -49,6 +49,21 @@ MainComponent::MainComponent() : menuBar(this) {
     if (xmlFile.existsAsFile()) {
       project.availableEffects = PluginData::loadEffectsFromXML(xmlFile);
 
+      // 🔥 DELAY EFFECT: fallback para ejecutables que carguen un XML antiguo.
+      bool hasDelay = false;
+      for (auto &effect : project.availableEffects)
+        if (effect.name == "Delay")
+          hasDelay = true;
+
+      if (!hasDelay) {
+        PluginData::EffectDefinition delay;
+        delay.name = "Delay";
+        delay.params.push_back({"Time"});
+        delay.params.push_back({"Feedback"});
+        delay.params.push_back({"Mix"});
+        project.availableEffects.push_back(delay);
+      }
+
       // 🔥🔥🔥 NUEVO: log también selectores
       for (auto &e : project.availableEffects) {
         juce::Logger::writeToLog("Effect: " + e.name);
@@ -286,6 +301,7 @@ juce::PopupMenu MainComponent::getMenuForIndex(int topLevelMenuIndex,
     menu.addItem(1001, "Distortion");
     menu.addItem(1002, "Filter");
     menu.addItem(1003, "Tremolo");
+    menu.addItem(1004, "Delay");
   }
 
   return menu;
@@ -496,6 +512,29 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
     canvas.addElement(PluginData::ComponentType::Slider, id++, "Rate");
     canvas.addElement(PluginData::ComponentType::Slider, id++, "Depth");
     canvas.addElement(PluginData::ComponentType::Selector, id++, "Mode");
+
+    propertiesPanel.inspectProject(&project);
+    canvas.refreshAutoParams();
+    break;
+  }
+
+  // 🔥 DELAY EFFECT
+  case 1004: // Delay
+  {
+    canvas.clearAll();
+
+    for (int i = 0; i < project.availableEffects.size(); ++i)
+      if (project.availableEffects[i].name == "Delay")
+        project.currentEffectIndex = i;
+
+    project.currentAlgorithm = PluginData::AlgorithmType::Delay;
+    project.isCustom = false;
+    syncPresetDspCode();
+
+    static int id = 1;
+    canvas.addElement(PluginData::ComponentType::Slider, id++, "Time");
+    canvas.addElement(PluginData::ComponentType::Slider, id++, "Feedback");
+    canvas.addElement(PluginData::ComponentType::Slider, id++, "Mix");
 
     propertiesPanel.inspectProject(&project);
     canvas.refreshAutoParams();

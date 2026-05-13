@@ -7,7 +7,7 @@ namespace PluginData {
 // ================================
 // ENUMS (mantengo por compatibilidad)
 // ================================
-enum class AlgorithmType { Gain, Distortion, Filter, Tremolo, Reverb, Custom };
+enum class AlgorithmType { Gain, Distortion, Filter, Tremolo, Reverb, Delay, Custom };
 
 // 🔥 AÑADIDO Selector
 enum class ComponentType { Slider, Toggle, Knob, Selector };
