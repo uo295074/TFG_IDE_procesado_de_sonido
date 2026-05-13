@@ -75,6 +75,10 @@ struct Project {
   juce::String manufacturer = "Mi Nombre";
   juce::String pluginURI = "http://miweb.com/plugins/miplugin";
 
+  // 🔥 EXTRA BUILD CONFIG
+  juce::String extraLibraries;
+  juce::String extraIncludePaths;
+
   juce::String userVariables = "// Variables persistentes\n";
   juce::String initCode;
 
@@ -125,6 +129,15 @@ struct Project {
     auto varsXml = new juce::XmlElement("USER_VARIABLES");
     varsXml->addTextElement(userVariables);
     xml->addChildElement(varsXml);
+
+    // 🔥 EXTRA BUILD CONFIG
+    auto extraLibsXml = new juce::XmlElement("EXTRA_LIBRARIES");
+    extraLibsXml->addTextElement(extraLibraries);
+    xml->addChildElement(extraLibsXml);
+
+    auto extraIncludesXml = new juce::XmlElement("EXTRA_INCLUDE_PATHS");
+    extraIncludesXml->addTextElement(extraIncludePaths);
+    xml->addChildElement(extraIncludesXml);
 
     auto compsXml = new juce::XmlElement("COMPONENTS");
 
@@ -184,6 +197,16 @@ struct Project {
 
     if (auto *varsXml = xml->getChildByName("USER_VARIABLES"))
       userVariables = varsXml->getAllSubText();
+
+    // 🔥 EXTRA BUILD CONFIG
+    extraLibraries.clear();
+    extraIncludePaths.clear();
+
+    if (auto *extraLibsXml = xml->getChildByName("EXTRA_LIBRARIES"))
+      extraLibraries = extraLibsXml->getAllSubText();
+
+    if (auto *extraIncludesXml = xml->getChildByName("EXTRA_INCLUDE_PATHS"))
+      extraIncludePaths = extraIncludesXml->getAllSubText();
 
     components.clear();
 

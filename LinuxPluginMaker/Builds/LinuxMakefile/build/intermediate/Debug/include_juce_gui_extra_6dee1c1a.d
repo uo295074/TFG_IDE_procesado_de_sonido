@@ -1187,8 +1187,8 @@ build/intermediate/Debug/include_juce_gui_extra_6dee1c1a.o: \
  /usr/include/webkitgtk-4.1/webkit/WebKitUserContentFilterStore.h \
  /usr/include/webkitgtk-4.1/webkit/WebKitUserMediaPermissionRequest.h \
  /usr/include/webkitgtk-4.1/webkit/WebKitVersion.h \
- /usr/include/webkitgtk-4.1/webkit/WebKitWebExtensionMatchPattern.h \
  /usr/include/webkitgtk-4.1/webkit/WebKitWebsiteDataAccessPermissionRequest.h \
+ /usr/include/webkitgtk-4.1/webkit/WebKitXRPermissionRequest.h \
  /usr/include/webkitgtk-4.1/webkit/WebKitAutocleanups.h \
  ../../../../JUCE/modules/juce_gui_extra/documents/juce_FileBasedDocument.cpp \
  ../../../../JUCE/modules/juce_gui_extra/code_editor/juce_CodeDocument.cpp \

@@ -213,7 +213,9 @@ target_link_libraries(DspLib PRIVATE juce::juce_core juce::juce_audio_basics)
 add_library(MiEfectoDSP MODULE Source/PluginEditor.cpp)
 set_target_properties(MiEfectoDSP PROPERTIES PREFIX "")
 set_target_properties(MiEfectoDSP PROPERTIES SUFFIX ".so")
-target_link_libraries(MiEfectoDSP PRIVATE DspLib juce::juce_core juce::juce_audio_basics)
+# EXTRA BUILD CONFIG
+{{EXTRA_INCLUDE_DIRS}}
+target_link_libraries(MiEfectoDSP PRIVATE DspLib juce::juce_core juce::juce_audio_basics {{EXTRA_LIBRARIES}})
 
 target_compile_definitions(MiEfectoDSP PRIVATE PLUGIN_URI_STRING="{{PLUGIN_URI}}")
 

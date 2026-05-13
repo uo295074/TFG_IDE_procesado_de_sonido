@@ -404,11 +404,41 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
 
   editorContent = editorContent.replace("{{PARAM_NAMES}}", paramNamesStr);
 
+  // 🔥 EXTRA BUILD CONFIG
+  juce::String extraIncludesCmake;
+  {
+    juce::StringArray lines;
+    lines.addLines(project.extraIncludePaths);
+
+    for (auto line : lines) {
+      auto cleaned = line.trim();
+      if (cleaned.isNotEmpty())
+        extraIncludesCmake += "include_directories(\"" + cleaned + "\")\n";
+    }
+  }
+
+  juce::String extraLibrariesCmake;
+  {
+    juce::StringArray libs;
+    libs.addTokens(project.extraLibraries, " ,\n\r\t", "");
+    libs.removeEmptyStrings();
+    libs.trim();
+
+    for (int i = 0; i < libs.size(); ++i) {
+      extraLibrariesCmake += libs[i];
+      if (i < libs.size() - 1)
+        extraLibrariesCmake += " ";
+    }
+  }
+
   juce::String cmakeContent = Templates::cmakeFile;
   cmakeContent = cmakeContent.replace("{{AUDIO_PORTS_TTL}}", audioPortsTtl);
   cmakeContent = cmakeContent.replace("{{TTL_PORTS}}", ttlPorts);
   cmakeContent = cmakeContent.replace("{{PLUGIN_NAME}}", project.pluginName);
   cmakeContent = cmakeContent.replace("{{PLUGIN_URI}}", project.pluginURI);
+  cmakeContent =
+      cmakeContent.replace("{{EXTRA_INCLUDE_DIRS}}", extraIncludesCmake);
+  cmakeContent = cmakeContent.replace("{{EXTRA_LIBRARIES}}", extraLibrariesCmake);
 
   desktopDir.getChildFile("CMakeLists.txt").replaceWithText(cmakeContent);
   sourceDir.getChildFile("PluginProcessor.h").replaceWithText(headerContent);

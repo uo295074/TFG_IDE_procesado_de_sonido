@@ -60,6 +60,21 @@ public:
     varsEditor.setMultiLine(true);
     varsEditor.setReturnKeyStartsNewLine(true);
     varsEditor.addListener(this);
+
+    // 🔥 EXTRA BUILD CONFIG
+    extraLibrariesLabel.setText("Librerias extra:", juce::dontSendNotification);
+    addAndMakeVisible(extraLibrariesLabel);
+    addAndMakeVisible(extraLibrariesEditor);
+    extraLibrariesEditor.setMultiLine(true);
+    extraLibrariesEditor.setReturnKeyStartsNewLine(true);
+    extraLibrariesEditor.addListener(this);
+
+    extraIncludePathsLabel.setText("Includes extra:", juce::dontSendNotification);
+    addAndMakeVisible(extraIncludePathsLabel);
+    addAndMakeVisible(extraIncludePathsEditor);
+    extraIncludePathsEditor.setMultiLine(true);
+    extraIncludePathsEditor.setReturnKeyStartsNewLine(true);
+    extraIncludePathsEditor.addListener(this);
   }
 
   void inspectProject(PluginData::Project *project) {
@@ -89,6 +104,8 @@ public:
                                 juce::dontSendNotification);
 
       varsEditor.setText(project->userVariables);
+      extraLibrariesEditor.setText(project->extraLibraries);
+      extraIncludePathsEditor.setText(project->extraIncludePaths);
     }
 
     updateRoleOptions();
@@ -147,6 +164,10 @@ private:
 
   juce::Label varsLabel;
   juce::TextEditor varsEditor;
+
+  // 🔥 EXTRA BUILD CONFIG
+  juce::Label extraLibrariesLabel, extraIncludePathsLabel;
+  juce::TextEditor extraLibrariesEditor, extraIncludePathsEditor;
 
   // 🔥 FIX CRÍTICO (FALTABA)
   bool isSliderLike() const {
@@ -246,6 +267,12 @@ private:
     varsLabel.setVisible(showProj);
     varsEditor.setVisible(showProj);
 
+    // 🔥 EXTRA BUILD CONFIG
+    extraLibrariesLabel.setVisible(showProj);
+    extraLibrariesEditor.setVisible(showProj);
+    extraIncludePathsLabel.setVisible(showProj);
+    extraIncludePathsEditor.setVisible(showProj);
+
     resized();
   }
 
@@ -291,6 +318,8 @@ private:
       currentProject->manufacturer = projManufEditor.getText();
       currentProject->pluginURI = projURIEditor.getText();
       currentProject->userVariables = varsEditor.getText();
+      currentProject->extraLibraries = extraLibrariesEditor.getText();
+      currentProject->extraIncludePaths = extraIncludePathsEditor.getText();
 
       if (inputsCombo.getSelectedId() > 0)
         currentProject->numInputs = inputsCombo.getSelectedId();
@@ -400,6 +429,21 @@ private:
       auto row = area.removeFromTop(120);
       varsLabel.setBounds(row.removeFromTop(20));
       varsEditor.setBounds(row);
+      area.removeFromTop(gap);
+    }
+
+    // 🔥 EXTRA BUILD CONFIG
+    if (extraLibrariesEditor.isVisible()) {
+      auto row = area.removeFromTop(90);
+      extraLibrariesLabel.setBounds(row.removeFromTop(20));
+      extraLibrariesEditor.setBounds(row);
+      area.removeFromTop(gap);
+    }
+
+    if (extraIncludePathsEditor.isVisible()) {
+      auto row = area.removeFromTop(90);
+      extraIncludePathsLabel.setBounds(row.removeFromTop(20));
+      extraIncludePathsEditor.setBounds(row);
     }
   }
 };
