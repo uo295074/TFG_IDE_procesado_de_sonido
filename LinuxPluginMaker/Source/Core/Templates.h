@@ -121,9 +121,12 @@ const std::string editorCpp = R"jv(
 #define NUM_INPUTS {{NUM_INPUTS}}
 #define NUM_OUTPUTS {{NUM_OUTPUTS}}
 #define PARAM_START_INDEX (NUM_INPUTS + NUM_OUTPUTS)
-#define NUM_PARAMS {{NUM_PARAMS}} 
+#define NUM_USER_PARAMS {{NUM_USER_PARAMS}}
+#define NUM_CONTROL_PARAMS {{NUM_CONTROL_PARAMS}}
 #define NUM_MONITOR_PORTS {{NUM_MONITOR_PORTS}}
-#define MONITOR_START_INDEX (PARAM_START_INDEX + NUM_PARAMS)
+#define MONITOR_START_INDEX (PARAM_START_INDEX + NUM_CONTROL_PARAMS)
+{{BYPASS_DEFINES}}
+{{MONITOR_DEFINES}}
 
 #ifndef PLUGIN_URI_STRING
 #define PLUGIN_URI_STRING "http://upm.es/plugins/MiEfectoTFG"
@@ -144,7 +147,7 @@ static LV2_Handle instantiate(const LV2_Descriptor*, double rate, const char*, c
 
     plugin->inputChans.resize(NUM_INPUTS, nullptr);
     plugin->outputChans.resize(NUM_OUTPUTS, nullptr);
-    plugin->paramPtrs.resize(NUM_PARAMS, nullptr);
+    plugin->paramPtrs.resize(NUM_CONTROL_PARAMS, nullptr);
     plugin->monitorPtrs.resize(NUM_MONITOR_PORTS, nullptr);
 
     return (LV2_Handle)plugin;
@@ -159,7 +162,7 @@ static void connect_port(LV2_Handle instance, uint32_t port, void* data) {
         plugin->outputChans[port - NUM_INPUTS] = (float*)data;
     else if (port < MONITOR_START_INDEX) {
         int paramIndex = (int)port - PARAM_START_INDEX;
-        if (paramIndex >= 0 && paramIndex < NUM_PARAMS)
+        if (paramIndex >= 0 && paramIndex < NUM_CONTROL_PARAMS)
             plugin->paramPtrs[paramIndex] = (float*)data;
     } else {
         int monitorIndex = (int)port - MONITOR_START_INDEX;
@@ -172,18 +175,55 @@ static void run(LV2_Handle instance, uint32_t n_samples) {
     Lv2Plugin* plugin = (Lv2Plugin*)instance;
 
     // 🔥 VECTOR LIMPIO Y ESTABLE
-    std::vector<float> currentValues(NUM_PARAMS);
+    std::vector<float> currentValues(NUM_USER_PARAMS);
 
-    for (int i = 0; i < NUM_PARAMS; ++i)
+    for (int i = 0; i < NUM_USER_PARAMS; ++i)
         currentValues[i] = plugin->paramPtrs[i] ? *(plugin->paramPtrs[i]) : 0.0f;
 
-    plugin->dsp->process(plugin->inputChans.data(), plugin->outputChans.data(),
-                         NUM_INPUTS, NUM_OUTPUTS, (int)n_samples, currentValues);
+    // GLOBAL BYPASS
+    float bypassValue = 0.0f;
+#if HAS_BYPASS
+    if (BYPASS_PARAM_INDEX >= 0 && BYPASS_PARAM_INDEX < NUM_CONTROL_PARAMS &&
+        plugin->paramPtrs[BYPASS_PARAM_INDEX])
+        bypassValue = *(plugin->paramPtrs[BYPASS_PARAM_INDEX]);
+#endif
 
-    // 🔥 SIGNAL INDICATORS
+    bool bypassActive = bypassValue >= 0.5f;
+
+    int minChannels = std::min(NUM_INPUTS, NUM_OUTPUTS);
+    for (int ch = 0; ch < minChannels; ++ch)
+        if (plugin->inputChans[ch] && plugin->outputChans[ch])
+            std::copy(plugin->inputChans[ch], plugin->inputChans[ch] + n_samples,
+                      plugin->outputChans[ch]);
+
+    if (NUM_OUTPUTS > NUM_INPUTS && NUM_INPUTS > 0 && plugin->inputChans[0])
+        for (int ch = NUM_INPUTS; ch < NUM_OUTPUTS; ++ch)
+            if (plugin->outputChans[ch])
+                std::copy(plugin->inputChans[0], plugin->inputChans[0] + n_samples,
+                          plugin->outputChans[ch]);
+
+    // 🔥 LED INDICATORS
     if (NUM_MONITOR_PORTS > 0)
     {
-        float peak = 0.0f;
+        float inputPeak = 0.0f;
+
+        for (int ch = 0; ch < NUM_INPUTS; ++ch)
+        {
+            float* data = plugin->inputChans[ch];
+            if (!data)
+                continue;
+
+            for (uint32_t i = 0; i < n_samples; ++i)
+                inputPeak = std::max(inputPeak, std::abs(data[i]));
+        }
+
+        if (!bypassActive)
+            plugin->dsp->process(plugin->inputChans.data(), plugin->outputChans.data(),
+                                 NUM_INPUTS, NUM_OUTPUTS, (int)n_samples, currentValues);
+
+        float outputPeak = 0.0f;
+        float rmsSum = 0.0f;
+        int rmsCount = 0;
 
         for (int ch = 0; ch < NUM_OUTPUTS; ++ch)
         {
@@ -191,20 +231,53 @@ static void run(LV2_Handle instance, uint32_t n_samples) {
             if (!data)
                 continue;
 
-            for (uint32_t i = 0; i < n_samples; ++i)
-                peak = std::max(peak, std::abs(data[i]));
+            for (uint32_t i = 0; i < n_samples; ++i) {
+                float sample = data[i];
+                outputPeak = std::max(outputPeak, std::abs(sample));
+                rmsSum += sample * sample;
+                rmsCount++;
+            }
         }
 
-        float signalLed = peak > 0.01f ? 1.0f : 0.0f;
-        float clipLed = peak > 0.95f ? 1.0f : 0.0f;
-        float levelMeter = juce::jlimit(0.0f, 1.0f, peak);
+        float rmsMeter = rmsCount > 0 ? std::sqrt(rmsSum / (float)rmsCount) : 0.0f;
+        rmsMeter = juce::jlimit(0.0f, 1.0f, rmsMeter);
+        float levelMeter = juce::jlimit(0.0f, 1.0f, outputPeak);
 
-        if (NUM_MONITOR_PORTS > 0 && plugin->monitorPtrs[0])
-            *(plugin->monitorPtrs[0]) = signalLed;
-        if (NUM_MONITOR_PORTS > 1 && plugin->monitorPtrs[1])
-            *(plugin->monitorPtrs[1]) = clipLed;
-        if (NUM_MONITOR_PORTS > 2 && plugin->monitorPtrs[2])
-            *(plugin->monitorPtrs[2]) = levelMeter;
+#ifdef MONITOR_INPUT_LED
+        if (plugin->monitorPtrs[MONITOR_INPUT_LED])
+            *(plugin->monitorPtrs[MONITOR_INPUT_LED]) = inputPeak > 0.01f ? 1.0f : 0.0f;
+#endif
+
+#ifdef MONITOR_OUTPUT_LED
+        if (plugin->monitorPtrs[MONITOR_OUTPUT_LED])
+            *(plugin->monitorPtrs[MONITOR_OUTPUT_LED]) = outputPeak > 0.01f ? 1.0f : 0.0f;
+#endif
+
+#ifdef MONITOR_CLIP_LED
+        if (plugin->monitorPtrs[MONITOR_CLIP_LED])
+            *(plugin->monitorPtrs[MONITOR_CLIP_LED]) = outputPeak > 0.95f ? 1.0f : 0.0f;
+#endif
+
+#ifdef MONITOR_LEVEL_METER
+        if (plugin->monitorPtrs[MONITOR_LEVEL_METER])
+            *(plugin->monitorPtrs[MONITOR_LEVEL_METER]) = levelMeter;
+#endif
+
+#ifdef MONITOR_RMS_METER
+        if (plugin->monitorPtrs[MONITOR_RMS_METER])
+            *(plugin->monitorPtrs[MONITOR_RMS_METER]) = rmsMeter;
+#endif
+
+#ifdef MONITOR_PROCESSING_LED
+        if (plugin->monitorPtrs[MONITOR_PROCESSING_LED])
+            *(plugin->monitorPtrs[MONITOR_PROCESSING_LED]) = n_samples > 0 ? 1.0f : 0.0f;
+#endif
+    }
+    else
+    {
+        if (!bypassActive)
+            plugin->dsp->process(plugin->inputChans.data(), plugin->outputChans.data(),
+                                 NUM_INPUTS, NUM_OUTPUTS, (int)n_samples, currentValues);
     }
 }
 

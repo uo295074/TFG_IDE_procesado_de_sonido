@@ -87,8 +87,16 @@ struct Project {
   int numInputs = 2;
   int numOutputs = 2;
 
-  // 🔥 SIGNAL INDICATORS
-  bool enableSignalIndicators = true;
+  // GLOBAL BYPASS
+  bool enableBypass = false;
+
+  // 🔥 LED INDICATORS
+  bool enableInputLed = false;
+  bool enableOutputLed = false;
+  bool enableClipLed = true;
+  bool enableLevelMeter = true;
+  bool enableRmsMeter = false;
+  bool enableProcessingLed = false;
 
   juce::String customDspCode = juce::String::fromUTF8(
       "// --- TU CÓDIGO DSP AQUÍ ---\n"
@@ -120,7 +128,14 @@ struct Project {
     xml->setAttribute("isCustom", isCustom);
     xml->setAttribute("numInputs", numInputs);
     xml->setAttribute("numOutputs", numOutputs);
-    xml->setAttribute("enableSignalIndicators", enableSignalIndicators);
+    xml->setAttribute("enableBypass", enableBypass);
+    // 🔥 LED INDICATORS
+    xml->setAttribute("enableInputLed", enableInputLed);
+    xml->setAttribute("enableOutputLed", enableOutputLed);
+    xml->setAttribute("enableClipLed", enableClipLed);
+    xml->setAttribute("enableLevelMeter", enableLevelMeter);
+    xml->setAttribute("enableRmsMeter", enableRmsMeter);
+    xml->setAttribute("enableProcessingLed", enableProcessingLed);
 
     auto dspXml = new juce::XmlElement("CUSTOM_DSP");
     dspXml->addTextElement(customDspCode);
@@ -192,8 +207,17 @@ struct Project {
 
     numInputs = xml->getIntAttribute("numInputs", 2);
     numOutputs = xml->getIntAttribute("numOutputs", 2);
-    enableSignalIndicators =
+    enableBypass = xml->getBoolAttribute("enableBypass", false);
+    // 🔥 LED INDICATORS
+    bool oldIndicatorsEnabled =
         xml->getBoolAttribute("enableSignalIndicators", true);
+    enableInputLed = xml->getBoolAttribute("enableInputLed", false);
+    enableOutputLed = xml->getBoolAttribute("enableOutputLed", false);
+    enableClipLed = xml->getBoolAttribute("enableClipLed", oldIndicatorsEnabled);
+    enableLevelMeter =
+        xml->getBoolAttribute("enableLevelMeter", oldIndicatorsEnabled);
+    enableRmsMeter = xml->getBoolAttribute("enableRmsMeter", false);
+    enableProcessingLed = xml->getBoolAttribute("enableProcessingLed", false);
 
     if (auto *dspXml = xml->getChildByName("CUSTOM_DSP"))
       customDspCode = dspXml->getAllSubText();

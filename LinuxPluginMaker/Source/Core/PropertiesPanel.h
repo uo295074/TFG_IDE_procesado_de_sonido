@@ -95,12 +95,46 @@ public:
     algoCombo.addListener(this);
     styleCombo(algoCombo);
 
-    // 🔥 SIGNAL INDICATORS
-    signalIndicatorsToggle.setButtonText("Indicadores de senal");
-    addAndMakeVisible(signalIndicatorsToggle);
-    signalIndicatorsToggle.addListener(this);
-    signalIndicatorsToggle.setColour(juce::ToggleButton::textColourId,
-                                     juce::Colour(0xffe5eff5));
+    // GLOBAL BYPASS
+    bypassToggle.setButtonText("Bypass global");
+    bypassToggle.setColour(juce::ToggleButton::textColourId,
+                           juce::Colour(0xffe5eff5));
+    addAndMakeVisible(bypassToggle);
+    bypassToggle.addListener(this);
+
+    // 🔥 LED INDICATORS
+    sectionIndicatorsLabel.setText("Indicadores visuales",
+                                   juce::dontSendNotification);
+    sectionIndicatorsLabel.setFont(juce::Font(14.0f, juce::Font::bold));
+    addAndMakeVisible(sectionIndicatorsLabel);
+
+    auto setupLedToggle = [](juce::ToggleButton &toggle,
+                             const juce::String &text) {
+      toggle.setButtonText(text);
+      toggle.setColour(juce::ToggleButton::textColourId,
+                       juce::Colour(0xffe5eff5));
+    };
+
+    setupLedToggle(inputLedToggle, "Input LED");
+    setupLedToggle(outputLedToggle, "Output LED");
+    setupLedToggle(clipLedToggle, "Clip LED");
+    setupLedToggle(levelMeterToggle, "Level Meter");
+    setupLedToggle(rmsMeterToggle, "RMS Meter");
+    setupLedToggle(processingLedToggle, "Processing LED");
+
+    addAndMakeVisible(inputLedToggle);
+    addAndMakeVisible(outputLedToggle);
+    addAndMakeVisible(clipLedToggle);
+    addAndMakeVisible(levelMeterToggle);
+    addAndMakeVisible(rmsMeterToggle);
+    addAndMakeVisible(processingLedToggle);
+
+    inputLedToggle.addListener(this);
+    outputLedToggle.addListener(this);
+    clipLedToggle.addListener(this);
+    levelMeterToggle.addListener(this);
+    rmsMeterToggle.addListener(this);
+    processingLedToggle.addListener(this);
 
     // 🔥 VARIABLES
     varsLabel.setText("Variables DSP:", juce::dontSendNotification);
@@ -154,6 +188,7 @@ public:
     styleLabel(extraIncludePathsLabel);
     styleLabel(sectionIdentityLabel);
     styleLabel(sectionRoutingLabel);
+    styleLabel(sectionIndicatorsLabel);
     styleLabel(sectionAdvancedLabel);
 
     styleEditor(compNameEditor);
@@ -196,11 +231,24 @@ public:
         algoCombo.setSelectedId(project->currentEffectIndex + 1,
                                 juce::dontSendNotification);
 
+      bypassToggle.setToggleState(project->enableBypass,
+                                  juce::dontSendNotification);
+
       varsEditor.setText(project->userVariables);
       extraLibrariesEditor.setText(project->extraLibraries);
       extraIncludePathsEditor.setText(project->extraIncludePaths);
-      signalIndicatorsToggle.setToggleState(project->enableSignalIndicators,
-                                            juce::dontSendNotification);
+      inputLedToggle.setToggleState(project->enableInputLed,
+                                    juce::dontSendNotification);
+      outputLedToggle.setToggleState(project->enableOutputLed,
+                                     juce::dontSendNotification);
+      clipLedToggle.setToggleState(project->enableClipLed,
+                                   juce::dontSendNotification);
+      levelMeterToggle.setToggleState(project->enableLevelMeter,
+                                      juce::dontSendNotification);
+      rmsMeterToggle.setToggleState(project->enableRmsMeter,
+                                    juce::dontSendNotification);
+      processingLedToggle.setToggleState(project->enableProcessingLed,
+                                         juce::dontSendNotification);
     }
 
     updateRoleOptions();
@@ -259,8 +307,13 @@ private:
   juce::Label algoLabel;
   juce::ComboBox algoCombo;
 
-  // 🔥 SIGNAL INDICATORS
-  juce::ToggleButton signalIndicatorsToggle;
+  // GLOBAL BYPASS
+  juce::ToggleButton bypassToggle;
+
+  // 🔥 LED INDICATORS
+  juce::Label sectionIndicatorsLabel;
+  juce::ToggleButton inputLedToggle, outputLedToggle, clipLedToggle,
+      levelMeterToggle, rmsMeterToggle, processingLedToggle;
 
   juce::Label varsLabel;
   juce::TextButton varsToggleBtn;
@@ -370,9 +423,16 @@ private:
     algoLabel.setVisible(showProj);
     algoCombo.setVisible(showProj);
     sectionRoutingLabel.setVisible(showProj);
+    bypassToggle.setVisible(showProj);
 
-    // 🔥 SIGNAL INDICATORS
-    signalIndicatorsToggle.setVisible(showProj);
+    // 🔥 LED INDICATORS (se configuran desde el panel izquierdo)
+    sectionIndicatorsLabel.setVisible(false);
+    inputLedToggle.setVisible(false);
+    outputLedToggle.setVisible(false);
+    clipLedToggle.setVisible(false);
+    levelMeterToggle.setVisible(false);
+    rmsMeterToggle.setVisible(false);
+    processingLedToggle.setVisible(false);
 
     varsLabel.setVisible(showProj);
     varsToggleBtn.setVisible(showProj);
@@ -433,9 +493,7 @@ private:
       currentProject->userVariables = varsEditor.getText();
       currentProject->extraLibraries = extraLibrariesEditor.getText();
       currentProject->extraIncludePaths = extraIncludePathsEditor.getText();
-      currentProject->enableSignalIndicators =
-          signalIndicatorsToggle.getToggleState();
-
+      currentProject->enableBypass = bypassToggle.getToggleState();
       if (inputsCombo.getSelectedId() > 0)
         currentProject->numInputs = inputsCombo.getSelectedId();
 
@@ -571,9 +629,30 @@ private:
       layoutField(outputsLabel, outputsCombo);
       layoutField(algoLabel, algoCombo);
 
-      if (signalIndicatorsToggle.isVisible()) {
+      if (bypassToggle.isVisible()) {
         auto row = area.removeFromTop(h);
-        signalIndicatorsToggle.setBounds(row);
+        bypassToggle.setBounds(row);
+        area.removeFromTop(gap);
+      }
+
+      if (sectionIndicatorsLabel.isVisible()) {
+        area.removeFromTop(4);
+        sectionIndicatorsLabel.setBounds(area.removeFromTop(22));
+        area.removeFromTop(4);
+
+        auto ledRow1 = area.removeFromTop(h);
+        inputLedToggle.setBounds(ledRow1.removeFromLeft(110));
+        outputLedToggle.setBounds(ledRow1);
+        area.removeFromTop(4);
+
+        auto ledRow2 = area.removeFromTop(h);
+        clipLedToggle.setBounds(ledRow2.removeFromLeft(110));
+        levelMeterToggle.setBounds(ledRow2);
+        area.removeFromTop(4);
+
+        auto ledRow3 = area.removeFromTop(h);
+        rmsMeterToggle.setBounds(ledRow3.removeFromLeft(110));
+        processingLedToggle.setBounds(ledRow3);
         area.removeFromTop(gap);
       }
     }

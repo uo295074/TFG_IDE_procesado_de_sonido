@@ -354,31 +354,67 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
     portIndex++;
   }
 
-  // 🔥 SIGNAL INDICATORS
-  juce::String monitorTtlPorts;
-  int numMonitorPorts = 0;
+  // GLOBAL BYPASS
+  int numUserParams = (int)project.components.size();
+  int numControlParams = numUserParams + (project.enableBypass ? 1 : 0);
+  juce::String bypassDefines = "#define HAS_BYPASS " +
+                               juce::String(project.enableBypass ? 1 : 0) +
+                               "\n#define BYPASS_PARAM_INDEX " +
+                               juce::String(project.enableBypass ? numUserParams : -1) +
+                               "\n";
 
-  if (project.enableSignalIndicators) {
-    monitorTtlPorts += ",\n             [ a lv2:OutputPort, lv2:ControlPort ; ";
-    monitorTtlPorts += "lv2:index " + juce::String(portIndex++) + " ; ";
-    monitorTtlPorts +=
-        "lv2:symbol \\\"signal_led\\\" ; lv2:name \\\"Signal LED\\\" ; ";
-    monitorTtlPorts += "lv2:minimum 0 ; lv2:maximum 1 ; lv2:default 0 ] ";
-
-    monitorTtlPorts += ",\n             [ a lv2:OutputPort, lv2:ControlPort ; ";
-    monitorTtlPorts += "lv2:index " + juce::String(portIndex++) + " ; ";
-    monitorTtlPorts +=
-        "lv2:symbol \\\"clip_led\\\" ; lv2:name \\\"Clip LED\\\" ; ";
-    monitorTtlPorts += "lv2:minimum 0 ; lv2:maximum 1 ; lv2:default 0 ] ";
-
-    monitorTtlPorts += ",\n             [ a lv2:OutputPort, lv2:ControlPort ; ";
-    monitorTtlPorts += "lv2:index " + juce::String(portIndex++) + " ; ";
-    monitorTtlPorts +=
-        "lv2:symbol \\\"level_meter\\\" ; lv2:name \\\"Level Meter\\\" ; ";
-    monitorTtlPorts += "lv2:minimum 0 ; lv2:maximum 1 ; lv2:default 0 ] ";
-
-    numMonitorPorts = 3;
+  if (project.enableBypass) {
+    ttlPorts += ",\n             [ a lv2:InputPort, lv2:ControlPort ; ";
+    ttlPorts += "lv2:portProperty lv2:toggled ; ";
+    ttlPorts += "lv2:index " + juce::String(portIndex++) + " ; ";
+    ttlPorts += "lv2:symbol \\\"bypass\\\" ; lv2:name \\\"Bypass\\\" ; ";
+    ttlPorts += "lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ] ";
   }
+
+  // 🔥 LED INDICATORS
+  struct MonitorPort {
+    juce::String symbol;
+    juce::String name;
+    juce::String defineName;
+  };
+
+  std::vector<MonitorPort> monitors;
+
+  auto addMonitor = [&monitors](bool enabled, const juce::String &symbol,
+                                const juce::String &name,
+                                const juce::String &defineName) {
+    if (enabled)
+      monitors.push_back({symbol, name, defineName});
+  };
+
+  addMonitor(project.enableInputLed, "input_led", "Input LED",
+             "MONITOR_INPUT_LED");
+  addMonitor(project.enableOutputLed, "output_led", "Output LED",
+             "MONITOR_OUTPUT_LED");
+  addMonitor(project.enableClipLed, "clip_led", "Clip LED", "MONITOR_CLIP_LED");
+  addMonitor(project.enableLevelMeter, "level_meter", "Level Meter",
+             "MONITOR_LEVEL_METER");
+  addMonitor(project.enableRmsMeter, "rms_meter", "RMS Meter",
+             "MONITOR_RMS_METER");
+  addMonitor(project.enableProcessingLed, "processing_led", "Processing LED",
+             "MONITOR_PROCESSING_LED");
+
+  juce::String monitorTtlPorts;
+  juce::String monitorDefines;
+
+  for (int i = 0; i < (int)monitors.size(); ++i) {
+    const auto &monitor = monitors[(size_t)i];
+
+    monitorTtlPorts += ",\n             [ a lv2:OutputPort, lv2:ControlPort ; ";
+    monitorTtlPorts += "lv2:index " + juce::String(portIndex++) + " ; ";
+    monitorTtlPorts += "lv2:symbol \\\"" + monitor.symbol + "\\\" ; ";
+    monitorTtlPorts += "lv2:name \\\"" + monitor.name + "\\\" ; ";
+    monitorTtlPorts += "lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ] ";
+
+    monitorDefines += "#define " + monitor.defineName + " " + juce::String(i) + "\n";
+  }
+
+  int numMonitorPorts = (int)monitors.size();
 
   // ================================
   // 3. DSP GENERATION
@@ -408,10 +444,14 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
       editorContent.replace("{{NUM_INPUTS}}", juce::String(project.numInputs));
   editorContent = editorContent.replace("{{NUM_OUTPUTS}}",
                                         juce::String(project.numOutputs));
-  editorContent = editorContent.replace(
-      "{{NUM_PARAMS}}", juce::String(project.components.size()));
+  editorContent =
+      editorContent.replace("{{NUM_USER_PARAMS}}", juce::String(numUserParams));
+  editorContent = editorContent.replace("{{NUM_CONTROL_PARAMS}}",
+                                        juce::String(numControlParams));
+  editorContent = editorContent.replace("{{BYPASS_DEFINES}}", bypassDefines);
   editorContent =
       editorContent.replace("{{NUM_MONITOR_PORTS}}", juce::String(numMonitorPorts));
+  editorContent = editorContent.replace("{{MONITOR_DEFINES}}", monitorDefines);
 
   // 🔥🔥🔥 GENERAR PARAM_NAMES
   juce::String paramNamesStr;

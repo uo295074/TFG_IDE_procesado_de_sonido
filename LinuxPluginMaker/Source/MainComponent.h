@@ -27,6 +27,7 @@ public:
 
 private:
   void syncPresetDspCode();
+  void syncLedTogglesFromProject();
 
   // 3. El componente visual de la barra
   juce::MenuBarComponent menuBar;
@@ -42,6 +43,14 @@ private:
   juce::TextButton deleteBtn{"Eliminar"};
   juce::TextButton clearBtn{"Borrar Todo"};
   juce::TextButton generateBtn{"GENERAR LV2"};
+
+  juce::Label ledToolsLabel{{}, "Indicadores"};
+  juce::ToggleButton inputLedToggle{"Input LED"};
+  juce::ToggleButton outputLedToggle{"Output LED"};
+  juce::ToggleButton clipLedToggle{"Clip LED"};
+  juce::ToggleButton levelMeterToggle{"Level Meter"};
+  juce::ToggleButton rmsMeterToggle{"RMS Meter"};
+  juce::ToggleButton processingLedToggle{"Processing LED"};
 
   PluginCanvas canvas;
   PropertiesPanel propertiesPanel;

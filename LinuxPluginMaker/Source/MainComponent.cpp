@@ -90,6 +90,14 @@ MainComponent::MainComponent() : menuBar(this) {
   listLabel.setJustificationType(juce::Justification::centred);
   listLabel.setColour(juce::Label::textColourId, kTextStrong);
 
+  auto setupLedToggle = [this](juce::ToggleButton &toggle, bool *target) {
+    addAndMakeVisible(toggle);
+    toggle.setColour(juce::ToggleButton::textColourId, kTextStrong);
+    toggle.onClick = [&toggle, target] {
+      *target = toggle.getToggleState();
+    };
+  };
+
   addAndMakeVisible(canvas);
   canvas.setProject(&project);
 
@@ -152,6 +160,19 @@ MainComponent::MainComponent() : menuBar(this) {
   deleteBtn.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
 
   deleteBtn.onClick = [this] { canvas.deleteSelected(); };
+
+  addAndMakeVisible(ledToolsLabel);
+  ledToolsLabel.setFont(juce::Font(16.0f, juce::Font::bold));
+  ledToolsLabel.setJustificationType(juce::Justification::centredLeft);
+  ledToolsLabel.setColour(juce::Label::textColourId, kTextStrong);
+
+  setupLedToggle(inputLedToggle, &project.enableInputLed);
+  setupLedToggle(outputLedToggle, &project.enableOutputLed);
+  setupLedToggle(clipLedToggle, &project.enableClipLed);
+  setupLedToggle(levelMeterToggle, &project.enableLevelMeter);
+  setupLedToggle(rmsMeterToggle, &project.enableRmsMeter);
+  setupLedToggle(processingLedToggle, &project.enableProcessingLed);
+  syncLedTogglesFromProject();
 
   addAndMakeVisible(propertiesPanel);
   propertiesPanel.inspectProject(&project);
@@ -319,11 +340,12 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
                                    project.fromXml(xml.get());
                                    // 3. Redibujar la interfaz
                                    canvas.loadProject(project);
-                                   // 4. Actualizar el panel derecho
-                                   propertiesPanel.inspectProject(&project);
-                                 }
-                               }
-                             });
+                                    // 4. Actualizar el panel derecho
+                                    propertiesPanel.inspectProject(&project);
+                                    syncLedTogglesFromProject();
+                                  }
+                                }
+                              });
     break;
 
   case FileExit:
@@ -531,7 +553,23 @@ void MainComponent::resized() {
   addSelectorBtn.setBounds(sidebar.removeFromTop(40));
   sidebar.removeFromTop(10);
   deleteBtn.setBounds(sidebar.removeFromTop(40)); // 🔥 NUEVO
-  sidebar.removeFromTop(10);
+  sidebar.removeFromTop(18);
+
+  ledToolsLabel.setBounds(sidebar.removeFromTop(24));
+  sidebar.removeFromTop(6);
+
+  auto layoutLedToggle = [&](juce::ToggleButton &toggle) {
+    toggle.setBounds(sidebar.removeFromTop(22));
+    sidebar.removeFromTop(4);
+  };
+
+  layoutLedToggle(inputLedToggle);
+  layoutLedToggle(outputLedToggle);
+  layoutLedToggle(clipLedToggle);
+  layoutLedToggle(levelMeterToggle);
+  layoutLedToggle(rmsMeterToggle);
+  layoutLedToggle(processingLedToggle);
+
   clearBtn.setBounds(sidebar.removeFromBottom(42));
 
   // 3. COLUMNA DERECHA
@@ -553,4 +591,14 @@ void MainComponent::syncPresetDspCode() {
   project.currentAlgorithm =
       (PluginData::AlgorithmType)project.currentEffectIndex;
   project.customDspCode = PluginGenerator::getBuiltinDspCode(project.currentAlgorithm);
+}
+
+void MainComponent::syncLedTogglesFromProject() {
+  inputLedToggle.setToggleState(project.enableInputLed, juce::dontSendNotification);
+  outputLedToggle.setToggleState(project.enableOutputLed, juce::dontSendNotification);
+  clipLedToggle.setToggleState(project.enableClipLed, juce::dontSendNotification);
+  levelMeterToggle.setToggleState(project.enableLevelMeter, juce::dontSendNotification);
+  rmsMeterToggle.setToggleState(project.enableRmsMeter, juce::dontSendNotification);
+  processingLedToggle.setToggleState(project.enableProcessingLed,
+                                     juce::dontSendNotification);
 }
