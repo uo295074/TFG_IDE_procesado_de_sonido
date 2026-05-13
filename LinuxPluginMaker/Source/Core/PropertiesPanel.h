@@ -61,6 +61,10 @@ public:
     varsLabel.setText("Variables DSP:", juce::dontSendNotification);
     addAndMakeVisible(varsLabel);
 
+    varsToggleBtn.setButtonText("Mostrar editor DSP");
+    addAndMakeVisible(varsToggleBtn);
+    varsToggleBtn.addListener(this);
+
     addAndMakeVisible(varsEditor);
     varsEditor.setMultiLine(true);
     varsEditor.setReturnKeyStartsNewLine(true);
@@ -80,6 +84,10 @@ public:
     extraIncludePathsEditor.setMultiLine(true);
     extraIncludePathsEditor.setReturnKeyStartsNewLine(true);
     extraIncludePathsEditor.addListener(this);
+
+    buildToggleBtn.setButtonText("Mostrar config de compilacion");
+    addAndMakeVisible(buildToggleBtn);
+    buildToggleBtn.addListener(this);
   }
 
   void inspectProject(PluginData::Project *project) {
@@ -173,11 +181,16 @@ private:
   juce::ToggleButton signalIndicatorsToggle;
 
   juce::Label varsLabel;
+  juce::TextButton varsToggleBtn;
   juce::TextEditor varsEditor;
 
   // 🔥 EXTRA BUILD CONFIG
+  juce::TextButton buildToggleBtn;
   juce::Label extraLibrariesLabel, extraIncludePathsLabel;
   juce::TextEditor extraLibrariesEditor, extraIncludePathsEditor;
+
+  bool showVarsEditor = false;
+  bool showBuildEditors = false;
 
   // 🔥 FIX CRÍTICO (FALTABA)
   bool isSliderLike() const {
@@ -278,13 +291,15 @@ private:
     signalIndicatorsToggle.setVisible(showProj);
 
     varsLabel.setVisible(showProj);
-    varsEditor.setVisible(showProj);
+    varsToggleBtn.setVisible(showProj);
+    varsEditor.setVisible(showProj && showVarsEditor);
 
     // 🔥 EXTRA BUILD CONFIG
-    extraLibrariesLabel.setVisible(showProj);
-    extraLibrariesEditor.setVisible(showProj);
-    extraIncludePathsLabel.setVisible(showProj);
-    extraIncludePathsEditor.setVisible(showProj);
+    buildToggleBtn.setVisible(showProj);
+    extraLibrariesLabel.setVisible(showProj && showBuildEditors);
+    extraLibrariesEditor.setVisible(showProj && showBuildEditors);
+    extraIncludePathsLabel.setVisible(showProj && showBuildEditors);
+    extraIncludePathsEditor.setVisible(showProj && showBuildEditors);
 
     resized();
   }
@@ -385,7 +400,28 @@ private:
   void textEditorReturnKeyPressed(juce::TextEditor &) override {
     applyChanges();
   }
-  void buttonClicked(juce::Button *) override { applyChanges(); }
+  void buttonClicked(juce::Button *button) override {
+    if (button == &varsToggleBtn) {
+      showVarsEditor = !showVarsEditor;
+      varsToggleBtn.setButtonText(showVarsEditor ? "Ocultar editor DSP"
+                                                 : "Mostrar editor DSP");
+      updateVisibility();
+      repaint();
+      return;
+    }
+
+    if (button == &buildToggleBtn) {
+      showBuildEditors = !showBuildEditors;
+      buildToggleBtn.setButtonText(showBuildEditors
+                                       ? "Ocultar config de compilacion"
+                                       : "Mostrar config de compilacion");
+      updateVisibility();
+      repaint();
+      return;
+    }
+
+    applyChanges();
+  }
 
   void addCompField(juce::Label &l, juce::TextEditor &e,
                     const juce::String &t) {
@@ -446,14 +482,26 @@ private:
     }
 
     // 🔥 VARIABLES (si las tienes)
+    if (varsLabel.isVisible()) {
+      auto row = area.removeFromTop(25);
+      varsLabel.setBounds(row.removeFromLeft(110));
+      varsToggleBtn.setBounds(row);
+      area.removeFromTop(gap);
+    }
+
     if (varsEditor.isVisible()) {
       auto row = area.removeFromTop(120);
-      varsLabel.setBounds(row.removeFromTop(20));
       varsEditor.setBounds(row);
       area.removeFromTop(gap);
     }
 
     // 🔥 EXTRA BUILD CONFIG
+    if (buildToggleBtn.isVisible()) {
+      auto row = area.removeFromTop(25);
+      buildToggleBtn.setBounds(row);
+      area.removeFromTop(gap);
+    }
+
     if (extraLibrariesEditor.isVisible()) {
       auto row = area.removeFromTop(90);
       extraLibrariesLabel.setBounds(row.removeFromTop(20));
