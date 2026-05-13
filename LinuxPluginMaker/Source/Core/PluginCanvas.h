@@ -153,13 +153,19 @@ public:
   }
 
   void paint(juce::Graphics &g) override {
-    g.fillAll(juce::Colours::black);
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff060b10), 0.0f, 0.0f,
+                                           juce::Colour(0xff0d151d), 0.0f,
+                                           (float)getHeight(), false));
+    g.fillAll();
 
-    g.setColour(juce::Colours::white.withAlpha(0.1f));
+    g.setColour(juce::Colour(0xff17242c));
     for (int x = 0; x < getWidth(); x += 20)
       g.drawVerticalLine(x, 0.0f, (float)getHeight());
     for (int y = 0; y < getHeight(); y += 20)
       g.drawHorizontalLine(y, 0.0f, (float)getWidth());
+
+    g.setColour(juce::Colour(0xff2a3f4a));
+    g.drawRect(getLocalBounds(), 1);
   }
 
   void mouseDown(const juce::MouseEvent &e) override {

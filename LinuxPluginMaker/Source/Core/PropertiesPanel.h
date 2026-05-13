@@ -15,6 +15,33 @@ public:
     titleLabel.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(titleLabel);
 
+    auto styleEditor = [](juce::TextEditor &ed) {
+      ed.setColour(juce::TextEditor::backgroundColourId,
+                   juce::Colour(0xff243640));
+      ed.setColour(juce::TextEditor::outlineColourId, juce::Colour(0xff40525c));
+      ed.setColour(juce::TextEditor::focusedOutlineColourId,
+                   juce::Colour(0xfff4b63b));
+      ed.setColour(juce::TextEditor::textColourId, juce::Colour(0xffeef4f8));
+    };
+
+    auto styleCombo = [](juce::ComboBox &cb) {
+      cb.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff243640));
+      cb.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff40525c));
+      cb.setColour(juce::ComboBox::textColourId, juce::Colour(0xffeef4f8));
+      cb.setColour(juce::ComboBox::arrowColourId, juce::Colour(0xffd8e3ea));
+    };
+
+    auto styleToggleBtn = [](juce::TextButton &btn) {
+      btn.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff2f4754));
+      btn.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff365868));
+      btn.setColour(juce::TextButton::textColourOffId, juce::Colour(0xffe9f0f4));
+      btn.setColour(juce::TextButton::textColourOnId, juce::Colour(0xfff8fbff));
+    };
+
+    auto styleLabel = [](juce::Label &l) {
+      l.setColour(juce::Label::textColourId, juce::Colour(0xffd3dde3));
+    };
+
     addCompField(compNameLabel, compNameEditor, "Nombre:");
     addCompField(compIDLabel, compIDEditor, "ID (Symbol):");
     addCompField(minLabel, minEditor, juce::String::fromUTF8("Mínimo:"));
@@ -27,6 +54,19 @@ public:
     addAndMakeVisible(roleLabel);
     addAndMakeVisible(roleCombo);
     roleCombo.addListener(this);
+    styleCombo(roleCombo);
+
+    sectionIdentityLabel.setText("Identidad", juce::dontSendNotification);
+    sectionIdentityLabel.setFont(juce::Font(14.0f, juce::Font::bold));
+    addAndMakeVisible(sectionIdentityLabel);
+
+    sectionRoutingLabel.setText("Audio y efecto", juce::dontSendNotification);
+    sectionRoutingLabel.setFont(juce::Font(14.0f, juce::Font::bold));
+    addAndMakeVisible(sectionRoutingLabel);
+
+    sectionAdvancedLabel.setText("Avanzado", juce::dontSendNotification);
+    sectionAdvancedLabel.setFont(juce::Font(14.0f, juce::Font::bold));
+    addAndMakeVisible(sectionAdvancedLabel);
 
     addProjField(projNameLabel, projNameEditor, "Nombre Plugin:");
     addProjField(projManufLabel, projManufEditor, "Fabricante:");
@@ -39,6 +79,7 @@ public:
     inputsCombo.addItem("1 (Mono)", 1);
     inputsCombo.addItem(juce::String::fromUTF8("2 (Estéreo)"), 2);
     inputsCombo.addListener(this);
+    styleCombo(inputsCombo);
 
     outputsLabel.setText("Salidas:", juce::dontSendNotification);
     addAndMakeVisible(outputsLabel);
@@ -46,16 +87,20 @@ public:
     outputsCombo.addItem("1 (Mono)", 1);
     outputsCombo.addItem(juce::String::fromUTF8("2 (Estéreo)"), 2);
     outputsCombo.addListener(this);
+    styleCombo(outputsCombo);
 
     algoLabel.setText("Efecto:", juce::dontSendNotification);
     addAndMakeVisible(algoLabel);
     addAndMakeVisible(algoCombo);
     algoCombo.addListener(this);
+    styleCombo(algoCombo);
 
     // 🔥 SIGNAL INDICATORS
     signalIndicatorsToggle.setButtonText("Indicadores de senal");
     addAndMakeVisible(signalIndicatorsToggle);
     signalIndicatorsToggle.addListener(this);
+    signalIndicatorsToggle.setColour(juce::ToggleButton::textColourId,
+                                     juce::Colour(0xffe5eff5));
 
     // 🔥 VARIABLES
     varsLabel.setText("Variables DSP:", juce::dontSendNotification);
@@ -64,6 +109,7 @@ public:
     varsToggleBtn.setButtonText("Mostrar editor DSP");
     addAndMakeVisible(varsToggleBtn);
     varsToggleBtn.addListener(this);
+    styleToggleBtn(varsToggleBtn);
 
     addAndMakeVisible(varsEditor);
     varsEditor.setMultiLine(true);
@@ -88,6 +134,40 @@ public:
     buildToggleBtn.setButtonText("Mostrar config de compilacion");
     addAndMakeVisible(buildToggleBtn);
     buildToggleBtn.addListener(this);
+    styleToggleBtn(buildToggleBtn);
+
+    styleLabel(compNameLabel);
+    styleLabel(compIDLabel);
+    styleLabel(minLabel);
+    styleLabel(maxLabel);
+    styleLabel(defLabel);
+    styleLabel(stepsLabel);
+    styleLabel(roleLabel);
+    styleLabel(projNameLabel);
+    styleLabel(projManufLabel);
+    styleLabel(projURILabel);
+    styleLabel(inputsLabel);
+    styleLabel(outputsLabel);
+    styleLabel(algoLabel);
+    styleLabel(varsLabel);
+    styleLabel(extraLibrariesLabel);
+    styleLabel(extraIncludePathsLabel);
+    styleLabel(sectionIdentityLabel);
+    styleLabel(sectionRoutingLabel);
+    styleLabel(sectionAdvancedLabel);
+
+    styleEditor(compNameEditor);
+    styleEditor(compIDEditor);
+    styleEditor(minEditor);
+    styleEditor(maxEditor);
+    styleEditor(defEditor);
+    styleEditor(stepsEditor);
+    styleEditor(projNameEditor);
+    styleEditor(projManufEditor);
+    styleEditor(projURIEditor);
+    styleEditor(varsEditor);
+    styleEditor(extraLibrariesEditor);
+    styleEditor(extraIncludePathsEditor);
   }
 
   void inspectProject(PluginData::Project *project) {
@@ -170,6 +250,8 @@ private:
 
   juce::Label projNameLabel, projManufLabel, projURILabel;
   juce::TextEditor projNameEditor, projManufEditor, projURIEditor;
+
+  juce::Label sectionIdentityLabel, sectionRoutingLabel, sectionAdvancedLabel;
 
   juce::Label inputsLabel, outputsLabel;
   juce::ComboBox inputsCombo, outputsCombo;
@@ -278,6 +360,7 @@ private:
     projManufEditor.setVisible(showProj);
     projURILabel.setVisible(showProj);
     projURIEditor.setVisible(showProj);
+    sectionIdentityLabel.setVisible(showProj);
 
     inputsLabel.setVisible(showProj);
     inputsCombo.setVisible(showProj);
@@ -286,6 +369,7 @@ private:
 
     algoLabel.setVisible(showProj);
     algoCombo.setVisible(showProj);
+    sectionRoutingLabel.setVisible(showProj);
 
     // 🔥 SIGNAL INDICATORS
     signalIndicatorsToggle.setVisible(showProj);
@@ -300,6 +384,7 @@ private:
     extraLibrariesEditor.setVisible(showProj && showBuildEditors);
     extraIncludePathsLabel.setVisible(showProj && showBuildEditors);
     extraIncludePathsEditor.setVisible(showProj && showBuildEditors);
+    sectionAdvancedLabel.setVisible(showProj);
 
     resized();
   }
@@ -465,9 +550,21 @@ private:
     layoutField(stepsLabel, stepsEditor);
     layoutField(roleLabel, roleCombo);
 
+    if (sectionIdentityLabel.isVisible()) {
+      sectionIdentityLabel.setBounds(area.removeFromTop(22));
+      area.removeFromTop(4);
+    }
+
     layoutField(projNameLabel, projNameEditor);
     layoutField(projManufLabel, projManufEditor);
     layoutField(projURILabel, projURIEditor);
+
+    area.removeFromTop(6);
+
+    if (sectionRoutingLabel.isVisible()) {
+      sectionRoutingLabel.setBounds(area.removeFromTop(22));
+      area.removeFromTop(4);
+    }
 
     if (algoCombo.isVisible()) {
       layoutField(inputsLabel, inputsCombo);
@@ -479,6 +576,13 @@ private:
         signalIndicatorsToggle.setBounds(row);
         area.removeFromTop(gap);
       }
+    }
+
+    area.removeFromTop(6);
+
+    if (sectionAdvancedLabel.isVisible()) {
+      sectionAdvancedLabel.setBounds(area.removeFromTop(22));
+      area.removeFromTop(4);
     }
 
     // 🔥 VARIABLES (si las tienes)

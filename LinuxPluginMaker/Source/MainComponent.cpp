@@ -7,6 +7,19 @@
 #include "MainComponent.h"
 #include "Core/CodeEditorPanel.h"
 
+namespace {
+const juce::Colour kBgTop(0xff2e3f47);
+const juce::Colour kBgBottom(0xff1f2a31);
+const juce::Colour kPanelBg(0xff344750);
+const juce::Colour kPanelStroke(0xff4f6772);
+const juce::Colour kTextStrong(0xffecf2f6);
+const juce::Colour kButtonBg(0xff2b3f48);
+const juce::Colour kButtonOn(0xff365666);
+const juce::Colour kGenerate(0xfff3b233);
+const juce::Colour kDelete(0xffef8f1f);
+const juce::Colour kDanger(0xffa82626);
+} // namespace
+
 // Definimos IDs para los menús
 enum MenuIDs {
   FileNew = 1,
@@ -60,20 +73,31 @@ MainComponent::MainComponent() : menuBar(this) {
   // ================================
 
   addAndMakeVisible(menuBar);
+  menuBar.setColour(juce::PopupMenu::backgroundColourId, juce::Colour(0xff2a3a42));
+  menuBar.setColour(juce::PopupMenu::textColourId, kTextStrong);
+  menuBar.setColour(juce::PopupMenu::highlightedBackgroundColourId,
+                    juce::Colour(0xff446273));
+  menuBar.setColour(juce::PopupMenu::highlightedTextColourId,
+                    juce::Colours::white);
 
   addAndMakeVisible(toolsLabel);
   toolsLabel.setFont(juce::Font(18.0f, juce::Font::bold));
   toolsLabel.setJustificationType(juce::Justification::centred);
+  toolsLabel.setColour(juce::Label::textColourId, kTextStrong);
 
   addAndMakeVisible(listLabel);
   listLabel.setFont(juce::Font(18.0f, juce::Font::bold));
   listLabel.setJustificationType(juce::Justification::centred);
+  listLabel.setColour(juce::Label::textColourId, kTextStrong);
 
   addAndMakeVisible(canvas);
   canvas.setProject(&project);
 
   // BOTONES
   addAndMakeVisible(addSliderBtn);
+  addSliderBtn.setColour(juce::TextButton::buttonColourId, kButtonBg);
+  addSliderBtn.setColour(juce::TextButton::buttonOnColourId, kButtonOn);
+  addSliderBtn.setColour(juce::TextButton::textColourOffId, kTextStrong);
   addSliderBtn.onClick = [this] {
     static int counter = 1;
     canvas.addElement(PluginData::ComponentType::Slider, counter,
@@ -82,6 +106,9 @@ MainComponent::MainComponent() : menuBar(this) {
   };
 
   addAndMakeVisible(addToggleBtn);
+  addToggleBtn.setColour(juce::TextButton::buttonColourId, kButtonBg);
+  addToggleBtn.setColour(juce::TextButton::buttonOnColourId, kButtonOn);
+  addToggleBtn.setColour(juce::TextButton::textColourOffId, kTextStrong);
   addToggleBtn.onClick = [this] {
     static int counter = 1;
     canvas.addElement(PluginData::ComponentType::Toggle, counter,
@@ -90,6 +117,9 @@ MainComponent::MainComponent() : menuBar(this) {
   };
 
   addAndMakeVisible(addKnobBtn);
+  addKnobBtn.setColour(juce::TextButton::buttonColourId, kButtonBg);
+  addKnobBtn.setColour(juce::TextButton::buttonOnColourId, kButtonOn);
+  addKnobBtn.setColour(juce::TextButton::textColourOffId, kTextStrong);
   addKnobBtn.onClick = [this] {
     static int counter = 1;
     canvas.addElement(PluginData::ComponentType::Knob, counter,
@@ -98,6 +128,9 @@ MainComponent::MainComponent() : menuBar(this) {
   };
 
   addAndMakeVisible(addSelectorBtn);
+  addSelectorBtn.setColour(juce::TextButton::buttonColourId, kButtonBg);
+  addSelectorBtn.setColour(juce::TextButton::buttonOnColourId, kButtonOn);
+  addSelectorBtn.setColour(juce::TextButton::textColourOffId, kTextStrong);
   addSelectorBtn.onClick = [this] {
     static int counter = 1;
     canvas.addElement(PluginData::ComponentType::Selector, counter,
@@ -106,7 +139,8 @@ MainComponent::MainComponent() : menuBar(this) {
   };
 
   addAndMakeVisible(clearBtn);
-  clearBtn.setColour(juce::TextButton::buttonColourId, juce::Colours::darkred);
+  clearBtn.setColour(juce::TextButton::buttonColourId, kDanger);
+  clearBtn.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
   clearBtn.onClick = [this] {
     propertiesPanel.inspectElement(nullptr);
     canvas.clearAll();
@@ -114,8 +148,8 @@ MainComponent::MainComponent() : menuBar(this) {
   };
 
   addAndMakeVisible(deleteBtn);
-  deleteBtn.setColour(juce::TextButton::buttonColourId,
-                      juce::Colours::darkorange);
+  deleteBtn.setColour(juce::TextButton::buttonColourId, kDelete);
+  deleteBtn.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
 
   deleteBtn.onClick = [this] { canvas.deleteSelected(); };
 
@@ -141,10 +175,9 @@ MainComponent::MainComponent() : menuBar(this) {
   syncPresetDspCode();
 
   addAndMakeVisible(generateBtn);
-  generateBtn.setColour(juce::TextButton::buttonColourId,
-                        juce::Colours::orange);
-  generateBtn.setColour(juce::TextButton::textColourOffId,
-                        juce::Colours::black);
+  generateBtn.setColour(juce::TextButton::buttonColourId, kGenerate);
+  generateBtn.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xfff8c45c));
+  generateBtn.setColour(juce::TextButton::textColourOffId, juce::Colour(0xff111111));
 
   generateBtn.onClick = [this] {
     canvas.updateProjectData(project);
@@ -455,12 +488,26 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
 // --- LAYOUT ACTUALIZADO ---
 
 void MainComponent::paint(juce::Graphics &g) {
-  g.fillAll(juce::Colours::darkgrey);
+  g.setGradientFill(
+      juce::ColourGradient(kBgTop, 0.0f, 0.0f, kBgBottom, 0.0f,
+                           (float)getHeight(), false));
+  g.fillAll();
 
-  // Las líneas ahora empiezan un poco más abajo (debajo del menú)
-  g.setColour(juce::Colours::black);
-  g.fillRect(200, 20, 2, getHeight());              // Izquierda
-  g.fillRect(getWidth() - 250, 20, 2, getHeight()); // Derecha
+  auto content = getLocalBounds().withTrimmedTop(20);
+  auto leftPanel = content.removeFromLeft(200).reduced(4);
+  auto rightPanel = content.removeFromRight(250).reduced(4);
+
+  g.setColour(kPanelBg.withAlpha(0.92f));
+  g.fillRoundedRectangle(leftPanel.toFloat(), 10.0f);
+  g.fillRoundedRectangle(rightPanel.toFloat(), 10.0f);
+
+  g.setColour(kPanelStroke.withAlpha(0.65f));
+  g.drawRoundedRectangle(leftPanel.toFloat(), 10.0f, 1.0f);
+  g.drawRoundedRectangle(rightPanel.toFloat(), 10.0f, 1.0f);
+
+  auto centerPanel = content.reduced(6);
+  g.setColour(juce::Colour(0xff213039).withAlpha(0.45f));
+  g.fillRoundedRectangle(centerPanel.toFloat(), 10.0f);
 }
 
 void MainComponent::resized() {
@@ -469,13 +516,12 @@ void MainComponent::resized() {
   // 1. MENU BAR (Ocupa la tira de arriba)
   // .removeFromTop(20) corta 20 píxeles de arriba y se los da a la barra.
   // El resto de 'area' se hace más pequeño automáticamente.
-  menuBar.setBounds(area.removeFromTop(20));
+  menuBar.setBounds(area.removeFromTop(24));
 
   // 2. COLUMNA IZQUIERDA
-  auto sidebar = area.removeFromLeft(200);
-  sidebar.reduce(10, 10);
+  auto sidebar = area.removeFromLeft(200).reduced(12, 14);
   toolsLabel.setBounds(sidebar.removeFromTop(30));
-  sidebar.removeFromTop(20);
+  sidebar.removeFromTop(14);
   addSliderBtn.setBounds(sidebar.removeFromTop(40));
   sidebar.removeFromTop(10);
   addToggleBtn.setBounds(sidebar.removeFromTop(40));
@@ -486,17 +532,17 @@ void MainComponent::resized() {
   sidebar.removeFromTop(10);
   deleteBtn.setBounds(sidebar.removeFromTop(40)); // 🔥 NUEVO
   sidebar.removeFromTop(10);
-  clearBtn.setBounds(sidebar.removeFromBottom(40));
+  clearBtn.setBounds(sidebar.removeFromBottom(42));
 
   // 3. COLUMNA DERECHA
-  auto propsArea = area.removeFromRight(250);
+  auto propsArea = area.removeFromRight(250).reduced(12, 14);
   propertiesPanel.setBounds(propsArea);
 
   // 4. CENTRO
-  area.reduce(10, 10);
+  area.reduce(14, 14);
   listLabel.setBounds(area.removeFromTop(30));
-  generateBtn.setBounds(area.removeFromBottom(50));
-  area.removeFromBottom(10);
+  generateBtn.setBounds(area.removeFromBottom(46));
+  area.removeFromBottom(8);
   canvas.setBounds(area);
 }
 
