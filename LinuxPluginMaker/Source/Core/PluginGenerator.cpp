@@ -354,6 +354,32 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
     portIndex++;
   }
 
+  // 🔥 SIGNAL INDICATORS
+  juce::String monitorTtlPorts;
+  int numMonitorPorts = 0;
+
+  if (project.enableSignalIndicators) {
+    monitorTtlPorts += ",\n             [ a lv2:OutputPort, lv2:ControlPort ; ";
+    monitorTtlPorts += "lv2:index " + juce::String(portIndex++) + " ; ";
+    monitorTtlPorts +=
+        "lv2:symbol \\\"signal_led\\\" ; lv2:name \\\"Signal LED\\\" ; ";
+    monitorTtlPorts += "lv2:minimum 0 ; lv2:maximum 1 ; lv2:default 0 ] ";
+
+    monitorTtlPorts += ",\n             [ a lv2:OutputPort, lv2:ControlPort ; ";
+    monitorTtlPorts += "lv2:index " + juce::String(portIndex++) + " ; ";
+    monitorTtlPorts +=
+        "lv2:symbol \\\"clip_led\\\" ; lv2:name \\\"Clip LED\\\" ; ";
+    monitorTtlPorts += "lv2:minimum 0 ; lv2:maximum 1 ; lv2:default 0 ] ";
+
+    monitorTtlPorts += ",\n             [ a lv2:OutputPort, lv2:ControlPort ; ";
+    monitorTtlPorts += "lv2:index " + juce::String(portIndex++) + " ; ";
+    monitorTtlPorts +=
+        "lv2:symbol \\\"level_meter\\\" ; lv2:name \\\"Level Meter\\\" ; ";
+    monitorTtlPorts += "lv2:minimum 0 ; lv2:maximum 1 ; lv2:default 0 ] ";
+
+    numMonitorPorts = 3;
+  }
+
   // ================================
   // 3. DSP GENERATION
   // ================================
@@ -384,6 +410,8 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
                                         juce::String(project.numOutputs));
   editorContent = editorContent.replace(
       "{{NUM_PARAMS}}", juce::String(project.components.size()));
+  editorContent =
+      editorContent.replace("{{NUM_MONITOR_PORTS}}", juce::String(numMonitorPorts));
 
   // 🔥🔥🔥 GENERAR PARAM_NAMES
   juce::String paramNamesStr;
@@ -436,6 +464,7 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
   cmakeContent = cmakeContent.replace("{{TTL_PORTS}}", ttlPorts);
   cmakeContent = cmakeContent.replace("{{PLUGIN_NAME}}", project.pluginName);
   cmakeContent = cmakeContent.replace("{{PLUGIN_URI}}", project.pluginURI);
+  cmakeContent = cmakeContent.replace("{{MONITOR_TTL_PORTS}}", monitorTtlPorts);
   cmakeContent =
       cmakeContent.replace("{{EXTRA_INCLUDE_DIRS}}", extraIncludesCmake);
   cmakeContent = cmakeContent.replace("{{EXTRA_LIBRARIES}}", extraLibrariesCmake);

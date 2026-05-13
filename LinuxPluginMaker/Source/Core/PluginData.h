@@ -87,6 +87,9 @@ struct Project {
   int numInputs = 2;
   int numOutputs = 2;
 
+  // 🔥 SIGNAL INDICATORS
+  bool enableSignalIndicators = true;
+
   juce::String customDspCode = juce::String::fromUTF8(
       "// --- TU CÓDIGO DSP AQUÍ ---\n"
       "for (int channel = 0; channel < totalNumInputChannels; ++channel)\n"
@@ -117,6 +120,7 @@ struct Project {
     xml->setAttribute("isCustom", isCustom);
     xml->setAttribute("numInputs", numInputs);
     xml->setAttribute("numOutputs", numOutputs);
+    xml->setAttribute("enableSignalIndicators", enableSignalIndicators);
 
     auto dspXml = new juce::XmlElement("CUSTOM_DSP");
     dspXml->addTextElement(customDspCode);
@@ -188,6 +192,8 @@ struct Project {
 
     numInputs = xml->getIntAttribute("numInputs", 2);
     numOutputs = xml->getIntAttribute("numOutputs", 2);
+    enableSignalIndicators =
+        xml->getBoolAttribute("enableSignalIndicators", true);
 
     if (auto *dspXml = xml->getChildByName("CUSTOM_DSP"))
       customDspCode = dspXml->getAllSubText();

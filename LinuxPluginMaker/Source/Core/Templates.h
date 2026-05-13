@@ -113,6 +113,8 @@ const std::string editorCpp = R"jv(
 #include <cstdint>
 #include <cstdlib>
 #include <vector>
+#include <algorithm>
+#include <cmath>
 #include <lv2/core/lv2.h>
 #include "PluginProcessor.h"
 
@@ -120,6 +122,8 @@ const std::string editorCpp = R"jv(
 #define NUM_OUTPUTS {{NUM_OUTPUTS}}
 #define PARAM_START_INDEX (NUM_INPUTS + NUM_OUTPUTS)
 #define NUM_PARAMS {{NUM_PARAMS}} 
+#define NUM_MONITOR_PORTS {{NUM_MONITOR_PORTS}}
+#define MONITOR_START_INDEX (PARAM_START_INDEX + NUM_PARAMS)
 
 #ifndef PLUGIN_URI_STRING
 #define PLUGIN_URI_STRING "http://upm.es/plugins/MiEfectoTFG"
@@ -129,6 +133,7 @@ struct Lv2Plugin {
     std::vector<float*> inputChans;
     std::vector<float*> outputChans;
     std::vector<float*> paramPtrs;
+    std::vector<float*> monitorPtrs;
     DspEngine* dsp;
 };
 
@@ -140,6 +145,7 @@ static LV2_Handle instantiate(const LV2_Descriptor*, double rate, const char*, c
     plugin->inputChans.resize(NUM_INPUTS, nullptr);
     plugin->outputChans.resize(NUM_OUTPUTS, nullptr);
     plugin->paramPtrs.resize(NUM_PARAMS, nullptr);
+    plugin->monitorPtrs.resize(NUM_MONITOR_PORTS, nullptr);
 
     return (LV2_Handle)plugin;
 }
@@ -151,10 +157,14 @@ static void connect_port(LV2_Handle instance, uint32_t port, void* data) {
         plugin->inputChans[port] = (float*)data;
     else if (port < NUM_INPUTS + NUM_OUTPUTS)
         plugin->outputChans[port - NUM_INPUTS] = (float*)data;
-    else {
+    else if (port < MONITOR_START_INDEX) {
         int paramIndex = (int)port - PARAM_START_INDEX;
         if (paramIndex >= 0 && paramIndex < NUM_PARAMS)
             plugin->paramPtrs[paramIndex] = (float*)data;
+    } else {
+        int monitorIndex = (int)port - MONITOR_START_INDEX;
+        if (monitorIndex >= 0 && monitorIndex < NUM_MONITOR_PORTS)
+            plugin->monitorPtrs[monitorIndex] = (float*)data;
     }
 }
 
@@ -169,6 +179,33 @@ static void run(LV2_Handle instance, uint32_t n_samples) {
 
     plugin->dsp->process(plugin->inputChans.data(), plugin->outputChans.data(),
                          NUM_INPUTS, NUM_OUTPUTS, (int)n_samples, currentValues);
+
+    // 🔥 SIGNAL INDICATORS
+    if (NUM_MONITOR_PORTS > 0)
+    {
+        float peak = 0.0f;
+
+        for (int ch = 0; ch < NUM_OUTPUTS; ++ch)
+        {
+            float* data = plugin->outputChans[ch];
+            if (!data)
+                continue;
+
+            for (uint32_t i = 0; i < n_samples; ++i)
+                peak = std::max(peak, std::abs(data[i]));
+        }
+
+        float signalLed = peak > 0.01f ? 1.0f : 0.0f;
+        float clipLed = peak > 0.95f ? 1.0f : 0.0f;
+        float levelMeter = juce::jlimit(0.0f, 1.0f, peak);
+
+        if (NUM_MONITOR_PORTS > 0 && plugin->monitorPtrs[0])
+            *(plugin->monitorPtrs[0]) = signalLed;
+        if (NUM_MONITOR_PORTS > 1 && plugin->monitorPtrs[1])
+            *(plugin->monitorPtrs[1]) = clipLed;
+        if (NUM_MONITOR_PORTS > 2 && plugin->monitorPtrs[2])
+            *(plugin->monitorPtrs[2]) = levelMeter;
+    }
 }
 
 static void cleanup(LV2_Handle instance) {
@@ -233,6 +270,7 @@ file(WRITE ${CMAKE_BINARY_DIR}/plugin.ttl
     doap:name \"{{PLUGIN_NAME}}\" ;
     lv2:port {{AUDIO_PORTS_TTL}}
 {{TTL_PORTS}}
+{{MONITOR_TTL_PORTS}}
     .")
 
 add_custom_command(TARGET MiEfectoDSP POST_BUILD

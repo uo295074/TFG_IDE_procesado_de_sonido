@@ -52,6 +52,11 @@ public:
     addAndMakeVisible(algoCombo);
     algoCombo.addListener(this);
 
+    // 🔥 SIGNAL INDICATORS
+    signalIndicatorsToggle.setButtonText("Indicadores de senal");
+    addAndMakeVisible(signalIndicatorsToggle);
+    signalIndicatorsToggle.addListener(this);
+
     // 🔥 VARIABLES
     varsLabel.setText("Variables DSP:", juce::dontSendNotification);
     addAndMakeVisible(varsLabel);
@@ -106,6 +111,8 @@ public:
       varsEditor.setText(project->userVariables);
       extraLibrariesEditor.setText(project->extraLibraries);
       extraIncludePathsEditor.setText(project->extraIncludePaths);
+      signalIndicatorsToggle.setToggleState(project->enableSignalIndicators,
+                                            juce::dontSendNotification);
     }
 
     updateRoleOptions();
@@ -161,6 +168,9 @@ private:
 
   juce::Label algoLabel;
   juce::ComboBox algoCombo;
+
+  // 🔥 SIGNAL INDICATORS
+  juce::ToggleButton signalIndicatorsToggle;
 
   juce::Label varsLabel;
   juce::TextEditor varsEditor;
@@ -264,6 +274,9 @@ private:
     algoLabel.setVisible(showProj);
     algoCombo.setVisible(showProj);
 
+    // 🔥 SIGNAL INDICATORS
+    signalIndicatorsToggle.setVisible(showProj);
+
     varsLabel.setVisible(showProj);
     varsEditor.setVisible(showProj);
 
@@ -320,6 +333,8 @@ private:
       currentProject->userVariables = varsEditor.getText();
       currentProject->extraLibraries = extraLibrariesEditor.getText();
       currentProject->extraIncludePaths = extraIncludePathsEditor.getText();
+      currentProject->enableSignalIndicators =
+          signalIndicatorsToggle.getToggleState();
 
       if (inputsCombo.getSelectedId() > 0)
         currentProject->numInputs = inputsCombo.getSelectedId();
@@ -422,6 +437,12 @@ private:
       layoutField(inputsLabel, inputsCombo);
       layoutField(outputsLabel, outputsCombo);
       layoutField(algoLabel, algoCombo);
+
+      if (signalIndicatorsToggle.isVisible()) {
+        auto row = area.removeFromTop(h);
+        signalIndicatorsToggle.setBounds(row);
+        area.removeFromTop(gap);
+      }
     }
 
     // 🔥 VARIABLES (si las tienes)
