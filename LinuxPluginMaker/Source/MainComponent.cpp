@@ -310,33 +310,12 @@ juce::PopupMenu MainComponent::getMenuForIndex(int topLevelMenuIndex,
 
 void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
   switch (menuItemID) {
+  case FileNew:
+    promptSaveBeforeNewProject();
+    break;
+
   case FileSave:
-    // 1. Asegurarnos de tener los datos
-    canvas.updateProjectData(project);
-
-    // 2. Abrir ventana
-    fileChooser = std::make_unique<juce::FileChooser>(
-        "Guardar Proyecto",
-        juce::File::getSpecialLocation(juce::File::userDocumentsDirectory),
-        "*.xml");
-
-    fileChooser->launchAsync(juce::FileBrowserComponent::saveMode |
-                                 juce::FileBrowserComponent::canSelectFiles,
-                             [this](const juce::FileChooser &fc) {
-                               juce::File file = fc.getResult();
-                               if (file != juce::File{}) {
-
-                                 // --- ESTE ES EL ARREGLO ---
-                                 // Si el usuario no escribió ".xml", se lo
-                                 // ponemos nosotros a la fuerza
-                                 if (!file.hasFileExtension("xml"))
-                                   file = file.withFileExtension("xml");
-                                 // --------------------------
-
-                                 if (auto xml = project.toXml())
-                                   xml->writeTo(file);
-                               }
-                             });
+    saveProjectAs();
     break;
 
   case FileLoad:
@@ -672,4 +651,100 @@ void MainComponent::syncLedTogglesFromProject() {
                                 juce::dontSendNotification);
   processingLedToggle.setToggleState(project.enableProcessingLed,
                                      juce::dontSendNotification);
+}
+
+bool MainComponent::hasUnsavedProjectChanges() {
+  canvas.updateProjectData(project);
+
+  PluginData::Project defaults;
+
+  return !project.components.empty() || project.pluginName != defaults.pluginName ||
+         project.manufacturer != defaults.manufacturer ||
+         project.pluginURI != defaults.pluginURI || project.isCustom != defaults.isCustom ||
+         project.currentEffectIndex != defaults.currentEffectIndex ||
+         project.currentAlgorithm != defaults.currentAlgorithm ||
+         project.numInputs != defaults.numInputs ||
+         project.numOutputs != defaults.numOutputs ||
+         project.enableBypass != defaults.enableBypass ||
+         project.enableInputLed != defaults.enableInputLed ||
+         project.enableOutputLed != defaults.enableOutputLed ||
+         project.enableClipLed != defaults.enableClipLed ||
+         project.enableLevelMeter != defaults.enableLevelMeter ||
+         project.enableRmsMeter != defaults.enableRmsMeter ||
+         project.enableProcessingLed != defaults.enableProcessingLed ||
+         project.extraLibraries != defaults.extraLibraries ||
+         project.extraIncludePaths != defaults.extraIncludePaths ||
+         project.userVariables != defaults.userVariables ||
+         project.initCode != defaults.initCode ||
+         (project.isCustom && project.customDspCode != defaults.customDspCode);
+}
+
+void MainComponent::promptSaveBeforeNewProject() {
+  if (!hasUnsavedProjectChanges()) {
+    resetProject();
+    return;
+  }
+
+  auto options = juce::MessageBoxOptions()
+                     .withIconType(juce::MessageBoxIconType::QuestionIcon)
+                     .withTitle(juce::String::fromUTF8("Nuevo proyecto"))
+                     .withMessage(juce::String::fromUTF8(
+                         "Hay cambios en el proyecto actual. ¿Quieres guardarlo antes de crear uno nuevo?"))
+                     .withButton(juce::String::fromUTF8("Guardar"))
+                     .withButton(juce::String::fromUTF8("No guardar"))
+                     .withButton(juce::String::fromUTF8("Cancelar"));
+
+  juce::AlertWindow::showAsync(options, [this](int result) {
+    if (result == 1) {
+      saveProjectAs([this](bool saved) {
+        if (saved)
+          resetProject();
+      });
+    } else if (result == 2) {
+      resetProject();
+    }
+  });
+}
+
+void MainComponent::resetProject() {
+  auto availableEffects = project.availableEffects;
+
+  project = PluginData::Project();
+  project.availableEffects = availableEffects;
+
+  propertiesPanel.inspectElement(nullptr);
+  canvas.clearAll();
+  syncPresetDspCode();
+  propertiesPanel.inspectProject(&project);
+  syncLedTogglesFromProject();
+  canvas.repaint();
+  repaint();
+}
+
+void MainComponent::saveProjectAs(std::function<void(bool)> onComplete) {
+  canvas.updateProjectData(project);
+
+  fileChooser = std::make_unique<juce::FileChooser>(
+      "Guardar Proyecto",
+      juce::File::getSpecialLocation(juce::File::userDocumentsDirectory),
+      "*.xml");
+
+  fileChooser->launchAsync(
+      juce::FileBrowserComponent::saveMode |
+          juce::FileBrowserComponent::canSelectFiles,
+      [this, onComplete](const juce::FileChooser &fc) {
+        juce::File file = fc.getResult();
+        bool saved = false;
+
+        if (file != juce::File{}) {
+          if (!file.hasFileExtension("xml"))
+            file = file.withFileExtension("xml");
+
+          if (auto xml = project.toXml())
+            saved = xml->writeTo(file);
+        }
+
+        if (onComplete)
+          onComplete(saved);
+      });
 }

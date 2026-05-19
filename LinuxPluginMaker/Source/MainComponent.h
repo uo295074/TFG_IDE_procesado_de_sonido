@@ -8,6 +8,7 @@
 #include "Core/PluginData.h"
 #include "Core/PluginGenerator.h"
 #include "Core/PropertiesPanel.h"
+#include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 // 1. Heredamos de MenuBarModel
@@ -28,6 +29,10 @@ public:
 private:
   void syncPresetDspCode();
   void syncLedTogglesFromProject();
+  bool hasUnsavedProjectChanges();
+  void promptSaveBeforeNewProject();
+  void resetProject();
+  void saveProjectAs(std::function<void(bool)> onComplete = {});
 
   // 3. El componente visual de la barra
   juce::MenuBarComponent menuBar;
