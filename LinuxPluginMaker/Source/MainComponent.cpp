@@ -88,7 +88,8 @@ MainComponent::MainComponent() : menuBar(this) {
   // ================================
 
   addAndMakeVisible(menuBar);
-  menuBar.setColour(juce::PopupMenu::backgroundColourId, juce::Colour(0xff2a3a42));
+  menuBar.setColour(juce::PopupMenu::backgroundColourId,
+                    juce::Colour(0xff2a3a42));
   menuBar.setColour(juce::PopupMenu::textColourId, kTextStrong);
   menuBar.setColour(juce::PopupMenu::highlightedBackgroundColourId,
                     juce::Colour(0xff446273));
@@ -108,9 +109,7 @@ MainComponent::MainComponent() : menuBar(this) {
   auto setupLedToggle = [this](juce::ToggleButton &toggle, bool *target) {
     addAndMakeVisible(toggle);
     toggle.setColour(juce::ToggleButton::textColourId, kTextStrong);
-    toggle.onClick = [&toggle, target] {
-      *target = toggle.getToggleState();
-    };
+    toggle.onClick = [&toggle, target] { *target = toggle.getToggleState(); };
   };
 
   addAndMakeVisible(canvas);
@@ -212,8 +211,10 @@ MainComponent::MainComponent() : menuBar(this) {
 
   addAndMakeVisible(generateBtn);
   generateBtn.setColour(juce::TextButton::buttonColourId, kGenerate);
-  generateBtn.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xfff8c45c));
-  generateBtn.setColour(juce::TextButton::textColourOffId, juce::Colour(0xff111111));
+  generateBtn.setColour(juce::TextButton::buttonOnColourId,
+                        juce::Colour(0xfff8c45c));
+  generateBtn.setColour(juce::TextButton::textColourOffId,
+                        juce::Colour(0xff111111));
 
   generateBtn.onClick = [this] {
     canvas.updateProjectData(project);
@@ -356,12 +357,12 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
                                    project.fromXml(xml.get());
                                    // 3. Redibujar la interfaz
                                    canvas.loadProject(project);
-                                    // 4. Actualizar el panel derecho
-                                    propertiesPanel.inspectProject(&project);
-                                    syncLedTogglesFromProject();
-                                  }
-                                }
-                              });
+                                   // 4. Actualizar el panel derecho
+                                   propertiesPanel.inspectProject(&project);
+                                   syncLedTogglesFromProject();
+                                 }
+                               }
+                             });
     break;
 
   case FileExit:
@@ -413,28 +414,54 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
     canvas.updateProjectData(project);
     generator.createPluginFiles(project);
 
+    juce::String defaultFolderName =
+        PluginGenerator::getSafePluginFileName(project);
+
     fileChooser = std::make_unique<juce::FileChooser>(
-        "Selecciona carpeta destino",
-        juce::File::getSpecialLocation(juce::File::userDocumentsDirectory),
+        juce::String::fromUTF8(
+            "Elige el nombre y ubicación de la carpeta exportada"),
+        juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
+            .getChildFile(defaultFolderName),
         "*");
 
     fileChooser->launchAsync(
-        juce::FileBrowserComponent::openMode |
+        juce::FileBrowserComponent::saveMode |
             juce::FileBrowserComponent::canSelectDirectories,
-        [this](const juce::FileChooser &fc) {
+        [this, defaultFolderName](const juce::FileChooser &fc) {
           juce::File target = fc.getResult();
           if (target != juce::File{}) {
-            juce::File source =
-                juce::File::getSpecialLocation(juce::File::userDesktopDirectory)
-                    .getChildFile("MiEfectoDSP");
+            juce::File source = generator.getGeneratedProjectDir(project);
 
-            source.copyDirectoryTo(target.getChildFile("MiEfectoDSP"));
+            if (target.exists() && target.isDirectory())
+              target = target.getChildFile(defaultFolderName);
+
+            if (target.exists()) {
+              juce::File parent = target.getParentDirectory();
+              juce::String baseName = target.getFileName();
+
+              int suffix = 1;
+              do {
+                target =
+                    parent.getChildFile(baseName + "_" + juce::String(suffix));
+                suffix++;
+              } while (target.exists());
+            }
+
+            if (!source.copyDirectoryTo(target)) {
+              juce::AlertWindow::showMessageBoxAsync(
+                  juce::AlertWindow::WarningIcon,
+                  juce::String::fromUTF8("Error de exportación"),
+                  juce::String::fromUTF8(
+                      "No se pudo copiar el código fuente generado."));
+              return;
+            }
 
             juce::AlertWindow::showMessageBoxAsync(
                 juce::AlertWindow::InfoIcon,
                 juce::String::fromUTF8("Exportación completada"),
                 juce::String::fromUTF8(
-                    "El código fuente se ha exportado correctamente."));
+                    "El código fuente se ha exportado en:\n") +
+                    target.getFullPathName());
           }
         });
 
@@ -549,9 +576,8 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
 // --- LAYOUT ACTUALIZADO ---
 
 void MainComponent::paint(juce::Graphics &g) {
-  g.setGradientFill(
-      juce::ColourGradient(kBgTop, 0.0f, 0.0f, kBgBottom, 0.0f,
-                           (float)getHeight(), false));
+  g.setGradientFill(juce::ColourGradient(kBgTop, 0.0f, 0.0f, kBgBottom, 0.0f,
+                                         (float)getHeight(), false));
   g.fillAll();
 
   auto content = getLocalBounds().withTrimmedTop(20);
@@ -629,15 +655,21 @@ void MainComponent::syncPresetDspCode() {
 
   project.currentAlgorithm =
       (PluginData::AlgorithmType)project.currentEffectIndex;
-  project.customDspCode = PluginGenerator::getBuiltinDspCode(project.currentAlgorithm);
+  project.customDspCode =
+      PluginGenerator::getBuiltinDspCode(project.currentAlgorithm);
 }
 
 void MainComponent::syncLedTogglesFromProject() {
-  inputLedToggle.setToggleState(project.enableInputLed, juce::dontSendNotification);
-  outputLedToggle.setToggleState(project.enableOutputLed, juce::dontSendNotification);
-  clipLedToggle.setToggleState(project.enableClipLed, juce::dontSendNotification);
-  levelMeterToggle.setToggleState(project.enableLevelMeter, juce::dontSendNotification);
-  rmsMeterToggle.setToggleState(project.enableRmsMeter, juce::dontSendNotification);
+  inputLedToggle.setToggleState(project.enableInputLed,
+                                juce::dontSendNotification);
+  outputLedToggle.setToggleState(project.enableOutputLed,
+                                 juce::dontSendNotification);
+  clipLedToggle.setToggleState(project.enableClipLed,
+                               juce::dontSendNotification);
+  levelMeterToggle.setToggleState(project.enableLevelMeter,
+                                  juce::dontSendNotification);
+  rmsMeterToggle.setToggleState(project.enableRmsMeter,
+                                juce::dontSendNotification);
   processingLedToggle.setToggleState(project.enableProcessingLed,
                                      juce::dontSendNotification);
 }

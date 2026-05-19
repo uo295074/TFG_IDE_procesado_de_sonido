@@ -320,19 +320,19 @@ add_subdirectory(JUCE)
 add_library(DspLib STATIC Source/PluginProcessor.cpp)
 target_link_libraries(DspLib PRIVATE juce::juce_core juce::juce_audio_basics)
 
-add_library(MiEfectoDSP MODULE Source/PluginEditor.cpp)
-set_target_properties(MiEfectoDSP PROPERTIES PREFIX "")
-set_target_properties(MiEfectoDSP PROPERTIES SUFFIX ".so")
+add_library({{PLUGIN_BINARY_NAME}} MODULE Source/PluginEditor.cpp)
+set_target_properties({{PLUGIN_BINARY_NAME}} PROPERTIES PREFIX "")
+set_target_properties({{PLUGIN_BINARY_NAME}} PROPERTIES SUFFIX ".so")
 # EXTRA BUILD CONFIG
 {{EXTRA_INCLUDE_DIRS}}
-target_link_libraries(MiEfectoDSP PRIVATE DspLib juce::juce_core juce::juce_audio_basics {{EXTRA_LIBRARIES}})
+target_link_libraries({{PLUGIN_BINARY_NAME}} PRIVATE DspLib juce::juce_core juce::juce_audio_basics {{EXTRA_LIBRARIES}})
 
-target_compile_definitions(MiEfectoDSP PRIVATE PLUGIN_URI_STRING="{{PLUGIN_URI}}")
+target_compile_definitions({{PLUGIN_BINARY_NAME}} PRIVATE PLUGIN_URI_STRING="{{PLUGIN_URI}}")
 
 file(WRITE ${CMAKE_BINARY_DIR}/manifest.ttl 
 "@prefix lv2:  <http://lv2plug.in/ns/lv2core#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-<{{PLUGIN_URI}}> a lv2:Plugin ; lv2:binary <MiEfectoDSP.so> ; rdfs:seeAlso <plugin.ttl> .")
+<{{PLUGIN_URI}}> a lv2:Plugin ; lv2:binary <{{PLUGIN_BINARY_NAME}}.so> ; rdfs:seeAlso <plugin.ttl> .")
 
 file(WRITE ${CMAKE_BINARY_DIR}/plugin.ttl 
 "@prefix lv2:  <http://lv2plug.in/ns/lv2core#> .
@@ -346,9 +346,9 @@ file(WRITE ${CMAKE_BINARY_DIR}/plugin.ttl
 {{MONITOR_TTL_PORTS}}
     .")
 
-add_custom_command(TARGET MiEfectoDSP POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/manifest.ttl $<TARGET_FILE_DIR:MiEfectoDSP>
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/plugin.ttl $<TARGET_FILE_DIR:MiEfectoDSP>
+add_custom_command(TARGET {{PLUGIN_BINARY_NAME}} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/manifest.ttl $<TARGET_FILE_DIR:{{PLUGIN_BINARY_NAME}}>
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/plugin.ttl $<TARGET_FILE_DIR:{{PLUGIN_BINARY_NAME}}>
 )
 )jv";
 } // namespace Templates

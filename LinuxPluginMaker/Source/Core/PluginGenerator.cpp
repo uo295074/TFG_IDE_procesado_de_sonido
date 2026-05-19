@@ -14,6 +14,36 @@ PluginGenerator::PluginGenerator() {
 }
 
 juce::String
+PluginGenerator::getSafePluginFileName(const PluginData::Project &project) {
+  juce::String safeName;
+
+  for (auto c : project.pluginName) {
+    if (juce::CharacterFunctions::isLetterOrDigit(c))
+      safeName += c;
+    else if (c == ' ' || c == '-' || c == '_')
+      safeName += "_";
+  }
+
+  while (safeName.contains("__"))
+    safeName = safeName.replace("__", "_");
+
+  safeName = safeName.trimCharactersAtStart("_").trimCharactersAtEnd("_");
+
+  if (safeName.isEmpty())
+    safeName = "MiEfectoDSP";
+
+  if (!juce::CharacterFunctions::isLetter(safeName[0]))
+    safeName = "Plugin_" + safeName;
+
+  return safeName;
+}
+
+juce::File
+PluginGenerator::getGeneratedProjectDir(const PluginData::Project &project) const {
+  return desktopDir.getChildFile(getSafePluginFileName(project));
+}
+
+juce::String
 PluginGenerator::getBuiltinDspCode(PluginData::AlgorithmType algorithm) {
   switch (algorithm) {
   case PluginData::AlgorithmType::Distortion:
@@ -303,7 +333,12 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
   if (!desktopDir.exists())
     desktopDir.createDirectory();
 
-  juce::File sourceDir = desktopDir.getChildFile("Source");
+  juce::File projectDir = getGeneratedProjectDir(project);
+  if (projectDir.exists())
+    projectDir.deleteRecursively();
+  projectDir.createDirectory();
+
+  juce::File sourceDir = projectDir.getChildFile("Source");
   if (!sourceDir.exists())
     sourceDir.createDirectory();
 
@@ -312,7 +347,7 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
           .getParentDirectory()
           .getChildFile("JUCE");
 
-  juce::File juceDest = desktopDir.getChildFile("JUCE");
+  juce::File juceDest = projectDir.getChildFile("JUCE");
 
   if (juceSource.exists()) {
     juceDest.deleteRecursively();
@@ -558,16 +593,18 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
   }
 
   juce::String cmakeContent = Templates::cmakeFile;
+  juce::String binaryName = getSafePluginFileName(project);
   cmakeContent = cmakeContent.replace("{{AUDIO_PORTS_TTL}}", audioPortsTtl);
   cmakeContent = cmakeContent.replace("{{TTL_PORTS}}", ttlPorts);
   cmakeContent = cmakeContent.replace("{{PLUGIN_NAME}}", project.pluginName);
   cmakeContent = cmakeContent.replace("{{PLUGIN_URI}}", project.pluginURI);
+  cmakeContent = cmakeContent.replace("{{PLUGIN_BINARY_NAME}}", binaryName);
   cmakeContent = cmakeContent.replace("{{MONITOR_TTL_PORTS}}", monitorTtlPorts);
   cmakeContent =
       cmakeContent.replace("{{EXTRA_INCLUDE_DIRS}}", extraIncludesCmake);
   cmakeContent = cmakeContent.replace("{{EXTRA_LIBRARIES}}", extraLibrariesCmake);
 
-  desktopDir.getChildFile("CMakeLists.txt").replaceWithText(cmakeContent);
+  projectDir.getChildFile("CMakeLists.txt").replaceWithText(cmakeContent);
   sourceDir.getChildFile("PluginProcessor.h").replaceWithText(headerContent);
   sourceDir.getChildFile("PluginProcessor.cpp")
       .replaceWithText(processorContent);
@@ -582,15 +619,10 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
 juce::String
 PluginGenerator::compileAndInstallPlugin(const PluginData::Project &project) {
 
-  juce::String safeName = "";
-  for (auto c : project.pluginName)
-    if (juce::CharacterFunctions::isLetter(c))
-      safeName += c;
+  juce::String safeName = getSafePluginFileName(project);
+  juce::File projectDir = getGeneratedProjectDir(project);
 
-  if (safeName.isEmpty())
-    safeName = "MiEfectoDSP";
-
-  juce::String cmd = "cd \"" + desktopDir.getFullPathName() +
+  juce::String cmd = "cd \"" + projectDir.getFullPathName() +
                      "\" && "
                      "mkdir -p build && cd build && "
                      "cmake .. && cmake --build . -j4 && "
@@ -600,7 +632,7 @@ PluginGenerator::compileAndInstallPlugin(const PluginData::Project &project) {
                      "mkdir -p ~/.lv2/" +
                      safeName +
                      ".lv2 && "
-                     "cp MiEfectoDSP.so manifest.ttl plugin.ttl ~/.lv2/" +
+                     "cp " + safeName + ".so manifest.ttl plugin.ttl ~/.lv2/" +
                      safeName + ".lv2/";
 
   return (system(cmd.toRawUTF8()) == 0) ? "OK:" + safeName

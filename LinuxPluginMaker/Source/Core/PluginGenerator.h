@@ -13,6 +13,8 @@ public:
   PluginGenerator();
 
   static juce::String getBuiltinDspCode(PluginData::AlgorithmType algorithm);
+  static juce::String getSafePluginFileName(const PluginData::Project &project);
+  juce::File getGeneratedProjectDir(const PluginData::Project &project) const;
 
   void createPluginFiles(PluginData::Project &project);
 
