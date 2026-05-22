@@ -33,6 +33,7 @@ private:
   void promptSaveBeforeNewProject();
   void resetProject();
   void saveProjectAs(std::function<void(bool)> onComplete = {});
+  void verifyBuildEnvironment();
 
   // 3. El componente visual de la barra
   juce::MenuBarComponent menuBar;

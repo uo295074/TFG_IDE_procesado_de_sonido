@@ -56,6 +56,20 @@ public:
     roleCombo.addListener(this);
     styleCombo(roleCombo);
 
+    customParamInfoLabel.setText(
+        juce::String::fromUTF8(
+            "Modo Custom: da funcionalidad a este control desde el editor DSP usando params[]."),
+        juce::dontSendNotification);
+    customParamInfoLabel.setJustificationType(juce::Justification::centredLeft);
+    customParamInfoLabel.setColour(juce::Label::backgroundColourId,
+                                   juce::Colour(0xff2f4754));
+    customParamInfoLabel.setColour(juce::Label::outlineColourId,
+                                   juce::Colour(0xff5f7885));
+    customParamInfoLabel.setColour(juce::Label::textColourId,
+                                   juce::Colour(0xffedf5f8));
+    customParamInfoLabel.setBorderSize(juce::BorderSize<int>(6, 8, 6, 8));
+    addAndMakeVisible(customParamInfoLabel);
+
     sectionIdentityLabel.setText("Identidad", juce::dontSendNotification);
     sectionIdentityLabel.setFont(juce::Font(14.0f, juce::Font::bold));
     addAndMakeVisible(sectionIdentityLabel);
@@ -274,7 +288,9 @@ public:
       if (isSelector())
         stepsEditor.setText(juce::String(element->getNumSteps()));
 
-      if (element->getParamName().isNotEmpty())
+      if (isCustomProject())
+        roleCombo.setText({}, juce::dontSendNotification);
+      else if (element->getParamName().isNotEmpty())
         roleCombo.setText(element->getParamName(), juce::dontSendNotification);
     }
   }
@@ -295,6 +311,7 @@ private:
 
   juce::Label roleLabel;
   juce::ComboBox roleCombo;
+  juce::Label customParamInfoLabel;
 
   juce::Label projNameLabel, projManufLabel, projURILabel;
   juce::TextEditor projNameEditor, projManufEditor, projURIEditor;
@@ -344,6 +361,10 @@ private:
     return currentElement->getType() == PluginData::ComponentType::Selector;
   }
 
+  bool isCustomProject() const {
+    return currentProject != nullptr && currentProject->isCustom;
+  }
+
   void populateAlgorithmCombo() {
     algoCombo.clear();
     if (!currentProject)
@@ -361,12 +382,13 @@ private:
 
   void updateRoleOptions() {
     roleCombo.clear();
+    roleCombo.setText({}, juce::dontSendNotification);
 
     if (!currentProject)
       return;
 
-    // 🔥 SOLO bloquear si hay efectos Y estamos en custom
-    if (currentProject->isCustom && !currentProject->availableEffects.empty())
+    // En Custom, el usuario asigna el significado desde el editor DSP.
+    if (isCustomProject())
       return;
 
     int idx = currentProject->currentEffectIndex;
@@ -385,6 +407,7 @@ private:
     bool showComp = (currentElement != nullptr);
     bool showProj = (!showComp && currentProject != nullptr);
     bool slider = isSliderLike();
+    bool customSlider = showComp && slider && isCustomProject();
 
     // ===== COMPONENTE =====
     compNameLabel.setVisible(showComp);
@@ -403,8 +426,9 @@ private:
     stepsLabel.setVisible(showComp && isSelector());
     stepsEditor.setVisible(showComp && isSelector());
 
-    roleLabel.setVisible(showComp && slider);
-    roleCombo.setVisible(showComp && slider);
+    roleLabel.setVisible(showComp && slider && !customSlider);
+    roleCombo.setVisible(showComp && slider && !customSlider);
+    customParamInfoLabel.setVisible(customSlider);
 
     // ===== PROYECTO =====
     projNameLabel.setVisible(showProj);
@@ -460,9 +484,14 @@ private:
                                  maxEditor.getText().getFloatValue(),
                                  defEditor.getText().getFloatValue());
 
+        if (isCustomProject()) {
+          currentElement->setParamName({});
+          currentElement->setRole(PluginData::ParamRole::None);
+        }
+
         int roleId = roleCombo.getSelectedId();
 
-        if (roleId > 0 && currentProject) {
+        if (!isCustomProject() && roleId > 0 && currentProject) {
           int idx = currentProject->currentEffectIndex;
 
           if (idx >= 0 && idx < currentProject->availableEffects.size()) {
@@ -607,6 +636,12 @@ private:
     // 🔥 NUEVO
     layoutField(stepsLabel, stepsEditor);
     layoutField(roleLabel, roleCombo);
+
+    if (customParamInfoLabel.isVisible()) {
+      auto row = area.removeFromTop(62);
+      customParamInfoLabel.setBounds(row);
+      area.removeFromTop(gap);
+    }
 
     if (sectionIdentityLabel.isVisible()) {
       sectionIdentityLabel.setBounds(area.removeFromTop(22));

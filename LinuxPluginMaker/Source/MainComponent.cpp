@@ -6,6 +6,8 @@
 */
 #include "MainComponent.h"
 #include "Core/CodeEditorPanel.h"
+#include <cstdlib>
+#include <vector>
 
 namespace {
 const juce::Colour kBgTop(0xff2e3f47);
@@ -18,6 +20,23 @@ const juce::Colour kButtonOn(0xff365666);
 const juce::Colour kGenerate(0xfff3b233);
 const juce::Colour kDelete(0xffef8f1f);
 const juce::Colour kDanger(0xffa82626);
+
+bool commandExists(const juce::String &command) {
+#if JUCE_LINUX || JUCE_MAC
+  juce::String check = "command -v " + command + " >/dev/null 2>&1";
+  return std::system(check.toRawUTF8()) == 0;
+#else
+  juce::ignoreUnused(command);
+  return false;
+#endif
+}
+
+bool lv2HeadersAvailable() {
+  return juce::File("/usr/include/lv2/core/lv2.h").existsAsFile() ||
+         juce::File("/usr/local/include/lv2/core/lv2.h").existsAsFile() ||
+         (commandExists("pkg-config") &&
+          std::system("pkg-config --exists lv2 >/dev/null 2>&1") == 0);
+}
 } // namespace
 
 // Definimos IDs para los menús
@@ -31,6 +50,7 @@ enum MenuIDs {
   ProjectCodeEditor,
   ProjectInitEditor,
   ProjectExportSource,
+  HelpVerifyEnvironment,
   HelpAbout
 };
 
@@ -297,6 +317,9 @@ juce::PopupMenu MainComponent::getMenuForIndex(int topLevelMenuIndex,
     menu.addItem(ProjectExportSource,
                  juce::String::fromUTF8("Exportar código fuente..."));
   } else if (menuName == "Ayuda") {
+    menu.addItem(HelpVerifyEnvironment,
+                 juce::String::fromUTF8("Verificación de entorno..."));
+    menu.addSeparator();
     menu.addItem(HelpAbout, "Acerca de LinuxPluginMaker...");
   } else if (menuName == "Presets") {
     menu.addItem(1001, "Distortion");
@@ -457,6 +480,10 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
         juce::AlertWindow::InfoIcon, "Acerca de",
         juce::String::fromUTF8(
             "TFG: Generador de Plugins LV2 para Linux.\nVersión 0.2"));
+    break;
+
+  case HelpVerifyEnvironment:
+    verifyBuildEnvironment();
     break;
 
   case 1001: // Distortion
@@ -747,4 +774,53 @@ void MainComponent::saveProjectAs(std::function<void(bool)> onComplete) {
         if (onComplete)
           onComplete(saved);
       });
+}
+
+void MainComponent::verifyBuildEnvironment() {
+  struct CheckItem {
+    juce::String name;
+    bool ok;
+    juce::String installHint;
+  };
+
+  std::vector<CheckItem> checks;
+  checks.push_back({"CMake", commandExists("cmake"),
+                    "sudo apt install cmake"});
+  checks.push_back({"Make", commandExists("make"),
+                    "sudo apt install make"});
+  checks.push_back({"Compilador g++", commandExists("g++"),
+                    "sudo apt install g++"});
+  checks.push_back({"Cabeceras LV2", lv2HeadersAvailable(),
+                    "sudo apt install lv2-dev"});
+
+  juce::String missing;
+  juce::String okList;
+
+  for (const auto &check : checks) {
+    if (check.ok) {
+      okList += "  - " + check.name + "\n";
+    } else {
+      missing += "  - " + check.name + "\n";
+      missing += "    Instalar con: " + check.installHint + "\n";
+    }
+  }
+
+  if (missing.isEmpty()) {
+    juce::AlertWindow::showMessageBoxAsync(
+        juce::AlertWindow::InfoIcon,
+        juce::String::fromUTF8("Verificación de entorno"),
+        juce::String::fromUTF8(
+            "El entorno está preparado para generar y compilar plug-ins LV2.\n\n") +
+            juce::String::fromUTF8("Herramientas encontradas:\n") + okList);
+    return;
+  }
+
+  juce::AlertWindow::showMessageBoxAsync(
+      juce::AlertWindow::WarningIcon,
+      juce::String::fromUTF8("Faltan herramientas"),
+      juce::String::fromUTF8(
+          "El sistema puede no ser capaz de compilar plug-ins LV2.\n\n") +
+          juce::String::fromUTF8("Falta instalar:\n") + missing +
+          juce::String::fromUTF8(
+              "\nDespués de instalar las dependencias, vuelve a ejecutar esta verificación."));
 }
