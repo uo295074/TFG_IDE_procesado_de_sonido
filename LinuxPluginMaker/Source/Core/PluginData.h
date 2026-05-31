@@ -76,6 +76,7 @@ struct Project {
   juce::String pluginURI = "http://miweb.com/plugins/miplugin";
 
   // 🔥 EXTRA BUILD CONFIG
+  juce::String extraHeaders;
   juce::String extraLibraries;
   juce::String extraIncludePaths;
 
@@ -150,6 +151,10 @@ struct Project {
     xml->addChildElement(varsXml);
 
     // 🔥 EXTRA BUILD CONFIG
+    auto extraHeadersXml = new juce::XmlElement("EXTRA_HEADERS");
+    extraHeadersXml->addTextElement(extraHeaders);
+    xml->addChildElement(extraHeadersXml);
+
     auto extraLibsXml = new juce::XmlElement("EXTRA_LIBRARIES");
     extraLibsXml->addTextElement(extraLibraries);
     xml->addChildElement(extraLibsXml);
@@ -229,8 +234,12 @@ struct Project {
       userVariables = varsXml->getAllSubText();
 
     // 🔥 EXTRA BUILD CONFIG
+    extraHeaders.clear();
     extraLibraries.clear();
     extraIncludePaths.clear();
+
+    if (auto *extraHeadersXml = xml->getChildByName("EXTRA_HEADERS"))
+      extraHeaders = extraHeadersXml->getAllSubText();
 
     if (auto *extraLibsXml = xml->getChildByName("EXTRA_LIBRARIES"))
       extraLibraries = extraLibsXml->getAllSubText();

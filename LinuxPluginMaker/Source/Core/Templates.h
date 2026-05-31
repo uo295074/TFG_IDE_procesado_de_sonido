@@ -10,6 +10,8 @@ const std::string processorHeader = R"jv(
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <vector>
 
+{{EXTRA_HEADERS}}
+
 class DspEngine
 {
 public:

@@ -458,17 +458,17 @@ private:
     rmsMeterToggle.setVisible(false);
     processingLedToggle.setVisible(false);
 
-    varsLabel.setVisible(showProj);
-    varsToggleBtn.setVisible(showProj);
-    varsEditor.setVisible(showProj && showVarsEditor);
+    varsLabel.setVisible(false);
+    varsToggleBtn.setVisible(false);
+    varsEditor.setVisible(false);
 
     // 🔥 EXTRA BUILD CONFIG
-    buildToggleBtn.setVisible(showProj);
-    extraLibrariesLabel.setVisible(showProj && showBuildEditors);
-    extraLibrariesEditor.setVisible(showProj && showBuildEditors);
-    extraIncludePathsLabel.setVisible(showProj && showBuildEditors);
-    extraIncludePathsEditor.setVisible(showProj && showBuildEditors);
-    sectionAdvancedLabel.setVisible(showProj);
+    buildToggleBtn.setVisible(false);
+    extraLibrariesLabel.setVisible(false);
+    extraLibrariesEditor.setVisible(false);
+    extraIncludePathsLabel.setVisible(false);
+    extraIncludePathsEditor.setVisible(false);
+    sectionAdvancedLabel.setVisible(false);
 
     resized();
   }
@@ -519,9 +519,6 @@ private:
       currentProject->pluginName = projNameEditor.getText();
       currentProject->manufacturer = projManufEditor.getText();
       currentProject->pluginURI = projURIEditor.getText();
-      currentProject->userVariables = varsEditor.getText();
-      currentProject->extraLibraries = extraLibrariesEditor.getText();
-      currentProject->extraIncludePaths = extraIncludePathsEditor.getText();
       currentProject->enableBypass = bypassToggle.getToggleState();
       if (inputsCombo.getSelectedId() > 0)
         currentProject->numInputs = inputsCombo.getSelectedId();

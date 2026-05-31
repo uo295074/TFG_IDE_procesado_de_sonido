@@ -37,6 +37,86 @@ bool lv2HeadersAvailable() {
          (commandExists("pkg-config") &&
           std::system("pkg-config --exists lv2 >/dev/null 2>&1") == 0);
 }
+
+class BuildConfigPanel : public juce::Component {
+public:
+  BuildConfigPanel(juce::String &headers, juce::String &libraries,
+                   juce::String &includePaths)
+      : headersRef(headers), librariesRef(libraries), includePathsRef(includePaths) {
+    title.setText(juce::String::fromUTF8("Configuración avanzada de compilación"),
+                  juce::dontSendNotification);
+    title.setFont(juce::Font(16.0f, juce::Font::bold));
+    addAndMakeVisible(title);
+
+    headersLabel.setText(juce::String::fromUTF8("Cabeceras C++ extra:"),
+                         juce::dontSendNotification);
+    libsLabel.setText(juce::String::fromUTF8("Librerías extra:"),
+                      juce::dontSendNotification);
+    includesLabel.setText("Includes extra:", juce::dontSendNotification);
+    addAndMakeVisible(headersLabel);
+    addAndMakeVisible(libsLabel);
+    addAndMakeVisible(includesLabel);
+
+    setupEditor(headersEditor, headersRef);
+    setupEditor(libsEditor, librariesRef);
+    setupEditor(includesEditor, includePathsRef);
+
+    help.setText(juce::String::fromUTF8(
+                     "Ejemplo cabeceras: #include <fftw3.h>\n"
+                     "Ejemplo librerías: fftw3 sndfile\n"
+                     "Ejemplo includes: /usr/include/milibreria"),
+                  juce::dontSendNotification);
+    help.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    addAndMakeVisible(help);
+
+    saveBtn.setButtonText("Guardar y Cerrar");
+    saveBtn.onClick = [this] {
+      headersRef = headersEditor.getText();
+      librariesRef = libsEditor.getText();
+      includePathsRef = includesEditor.getText();
+
+      if (auto *dw = findParentComponentOfClass<juce::DialogWindow>())
+        dw->exitModalState(0);
+    };
+    addAndMakeVisible(saveBtn);
+  }
+
+  void resized() override {
+    auto area = getLocalBounds().reduced(14);
+    title.setBounds(area.removeFromTop(28));
+    area.removeFromTop(10);
+
+    headersLabel.setBounds(area.removeFromTop(22));
+    headersEditor.setBounds(area.removeFromTop(80));
+    area.removeFromTop(12);
+
+    libsLabel.setBounds(area.removeFromTop(22));
+    libsEditor.setBounds(area.removeFromTop(80));
+    area.removeFromTop(12);
+
+    includesLabel.setBounds(area.removeFromTop(22));
+    includesEditor.setBounds(area.removeFromTop(80));
+    area.removeFromTop(10);
+
+    help.setBounds(area.removeFromTop(45));
+    saveBtn.setBounds(area.removeFromBottom(38).removeFromRight(160));
+  }
+
+private:
+  void setupEditor(juce::TextEditor &editor, const juce::String &text) {
+    editor.setMultiLine(true);
+    editor.setReturnKeyStartsNewLine(true);
+    editor.setText(text, juce::dontSendNotification);
+    addAndMakeVisible(editor);
+  }
+
+  juce::String &headersRef;
+  juce::String &librariesRef;
+  juce::String &includePathsRef;
+  juce::Label title, headersLabel, libsLabel, includesLabel, help;
+  juce::TextEditor headersEditor, libsEditor, includesEditor;
+  juce::TextButton saveBtn;
+};
 } // namespace
 
 // Definimos IDs para los menús
@@ -49,6 +129,8 @@ enum MenuIDs {
   ProjectGenerate,
   ProjectCodeEditor,
   ProjectInitEditor,
+  ProjectVarsEditor,
+  ProjectBuildConfig,
   ProjectExportSource,
   HelpVerifyEnvironment,
   HelpAbout
@@ -312,6 +394,10 @@ juce::PopupMenu MainComponent::getMenuForIndex(int topLevelMenuIndex,
                  juce::String::fromUTF8("Editor de Código DSP..."));
     menu.addItem(ProjectInitEditor,
                  juce::String::fromUTF8("Editor de Inicialización..."));
+    menu.addItem(ProjectVarsEditor,
+                 juce::String::fromUTF8("Variables DSP persistentes..."));
+    menu.addItem(ProjectBuildConfig,
+                 juce::String::fromUTF8("Configuración de compilación..."));
     menu.addSeparator();
     menu.addItem(ProjectGenerate, juce::String::fromUTF8("Generar Código C++"));
     menu.addItem(ProjectExportSource,
@@ -402,6 +488,39 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
     options.content->setSize(700, 500);
     options.dialogTitle =
         juce::String::fromUTF8("Editor de Código de Inicialización");
+    options.dialogBackgroundColour = juce::Colours::darkgrey;
+    options.escapeKeyTriggersCloseButton = true;
+    options.useNativeTitleBar = true;
+    options.resizable = true;
+
+    options.launchAsync();
+    break;
+  }
+
+  case ProjectVarsEditor: {
+    auto *editorPanel = new CodeEditorPanel(project.userVariables);
+
+    juce::DialogWindow::LaunchOptions options;
+    options.content.setOwned(editorPanel);
+    options.content->setSize(760, 520);
+    options.dialogTitle = juce::String::fromUTF8("Variables DSP persistentes");
+    options.dialogBackgroundColour = juce::Colours::darkgrey;
+    options.escapeKeyTriggersCloseButton = true;
+    options.useNativeTitleBar = true;
+    options.resizable = true;
+
+    options.launchAsync();
+    break;
+  }
+
+  case ProjectBuildConfig: {
+    auto *configPanel = new BuildConfigPanel(
+        project.extraHeaders, project.extraLibraries, project.extraIncludePaths);
+
+    juce::DialogWindow::LaunchOptions options;
+    options.content.setOwned(configPanel);
+    options.content->setSize(620, 500);
+    options.dialogTitle = juce::String::fromUTF8("Configuración de compilación");
     options.dialogBackgroundColour = juce::Colours::darkgrey;
     options.escapeKeyTriggersCloseButton = true;
     options.useNativeTitleBar = true;
@@ -699,6 +818,7 @@ bool MainComponent::hasUnsavedProjectChanges() {
          project.enableLevelMeter != defaults.enableLevelMeter ||
          project.enableRmsMeter != defaults.enableRmsMeter ||
          project.enableProcessingLed != defaults.enableProcessingLed ||
+         project.extraHeaders != defaults.extraHeaders ||
          project.extraLibraries != defaults.extraLibraries ||
          project.extraIncludePaths != defaults.extraIncludePaths ||
          project.userVariables != defaults.userVariables ||

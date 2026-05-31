@@ -8,6 +8,76 @@
 #include "PluginGenerator.h"
 #include "Templates.h"
 
+namespace {
+juce::String findRelevantBuildLine(const juce::String &log) {
+  juce::StringArray lines;
+  lines.addLines(log);
+
+  for (auto line : lines) {
+    auto trimmed = line.trim();
+    if (trimmed.containsIgnoreCase("error") ||
+        trimmed.containsIgnoreCase("cannot find") ||
+        trimmed.containsIgnoreCase("no se puede encontrar") ||
+        trimmed.containsIgnoreCase("undefined reference") ||
+        trimmed.containsIgnoreCase("permission denied") ||
+        trimmed.containsIgnoreCase("command not found"))
+      return trimmed;
+  }
+
+  return lines.isEmpty() ? "No se pudo leer una linea concreta del error."
+                         : lines[juce::jmax(0, lines.size() - 1)].trim();
+}
+
+juce::String classifyBuildError(const juce::String &log,
+                                const juce::File &logFile) {
+  juce::String type = "Error de compilacion no clasificado";
+  juce::String suggestion =
+      "Revisa el log completo para localizar el origen exacto del fallo.";
+
+  if (log.containsIgnoreCase("cannot find -l") ||
+      log.containsIgnoreCase("no se puede encontrar -l") ||
+      log.containsIgnoreCase("undefined reference")) {
+    type = "Problema de librerias externas";
+    suggestion = "Comprueba que la libreria esta instalada y que el campo "
+                 "Librerias extra contiene el nombre correcto.";
+  } else if (log.containsIgnoreCase("cmake: command not found") ||
+             log.containsIgnoreCase("make: command not found") ||
+             log.containsIgnoreCase("g++: command not found")) {
+    type = "Falta una herramienta del sistema";
+    suggestion = "Ejecuta Ayuda > Verificacion de entorno e instala las "
+                 "herramientas indicadas.";
+  } else if (log.containsIgnoreCase("CMake Error") ||
+             log.containsIgnoreCase("Configuring incomplete") ||
+             log.containsIgnoreCase("Could not find")) {
+    type = "Problema de configuracion CMake";
+    suggestion = "Comprueba dependencias, rutas de includes y configuracion "
+                 "avanzada de compilacion.";
+  } else if (log.containsIgnoreCase("Permission denied") ||
+             log.containsIgnoreCase("cannot create directory") ||
+             log.containsIgnoreCase("cp:")) {
+    type = "Problema de permisos o instalacion";
+    suggestion = "Comprueba permisos de escritura en la carpeta generada y en "
+                 "~/.lv2.";
+  } else if (log.containsIgnoreCase("error:") ||
+             log.containsIgnoreCase("fatal error:") ||
+             log.containsIgnoreCase("was not declared") ||
+             log.containsIgnoreCase("no matching function") ||
+             log.containsIgnoreCase("expected")) {
+    type = "Problema en codigo C++ o DSP personalizado";
+    suggestion = "Revisa el editor DSP, las variables persistentes y el codigo "
+                 "de inicializacion.";
+  }
+
+  juce::String result;
+  result += "ERROR:\n";
+  result += "Tipo: " + type + "\n\n";
+  result += "Resumen: " + findRelevantBuildLine(log) + "\n\n";
+  result += "Sugerencia: " + suggestion + "\n\n";
+  result += "Log completo:\n" + logFile.getFullPathName();
+  return result;
+}
+} // namespace
+
 PluginGenerator::PluginGenerator() {
   desktopDir =
       juce::File::getCurrentWorkingDirectory().getChildFile("GeneratedPlugins");
@@ -525,6 +595,8 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
   // ================================
 
   juce::String headerContent = Templates::processorHeader;
+  headerContent = headerContent.replace("{{EXTRA_HEADERS}}",
+                                        project.extraHeaders.trim());
   headerContent = headerContent.replace("{{USER_VARS}}", project.userVariables);
 
   juce::String processorContent = Templates::processorCpp;
@@ -621,11 +693,12 @@ PluginGenerator::compileAndInstallPlugin(const PluginData::Project &project) {
 
   juce::String safeName = getSafePluginFileName(project);
   juce::File projectDir = getGeneratedProjectDir(project);
+  juce::File logFile = projectDir.getChildFile("build").getChildFile("build.log");
 
   juce::String cmd = "cd \"" + projectDir.getFullPathName() +
                      "\" && "
-                     "mkdir -p build && cd build && "
-                     "cmake .. && cmake --build . -j4 && "
+                     "mkdir -p build && rm -f build/build.log && cd build && "
+                     "(cmake .. && cmake --build . -j4 && "
                      "rm -rf ~/.lv2/" +
                      safeName +
                      ".lv2 && "
@@ -633,10 +706,14 @@ PluginGenerator::compileAndInstallPlugin(const PluginData::Project &project) {
                      safeName +
                      ".lv2 && "
                      "cp " + safeName + ".so manifest.ttl plugin.ttl ~/.lv2/" +
-                     safeName + ".lv2/";
+                     safeName + ".lv2/) > build.log 2>&1";
 
-  return (system(cmd.toRawUTF8()) == 0) ? "OK:" + safeName
-                                        : "ERROR: fallo en compilación";
+  if (system(cmd.toRawUTF8()) == 0)
+    return "OK:" + safeName;
+
+  juce::String log = logFile.existsAsFile() ? logFile.loadFileAsString()
+                                            : "No se encontro build.log.";
+  return classifyBuildError(log, logFile);
 }
 
 // ================================
