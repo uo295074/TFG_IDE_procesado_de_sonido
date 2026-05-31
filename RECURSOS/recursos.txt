@@ -1,0 +1,1 @@
+En esta carpeta se encuentran los archivos de audio y recursos utilizados durante el TFG, para desarrollo o pruebas. 
