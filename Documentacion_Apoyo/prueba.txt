@@ -1,0 +1,71 @@
+librerías
+fftw3
+
+includes
+/usr/include
+
+variables
+
+#include <fftw3.h>
+
+static constexpr int fftSize = 1024;
+
+double fftInput[fftSize] = {0.0};
+fftw_complex fftOutput[(fftSize / 2) + 1];
+
+fftw_plan fftPlan = nullptr;
+
+inicialización
+
+if (fftPlan == nullptr)
+{
+    fftPlan = fftw_plan_dft_r2c_1d(fftSize, fftInput, fftOutput, FFTW_ESTIMATE);
+}
+
+DSP
+
+auto getParam = [&](int index, float def)
+{
+    return (index < (int)params.size()) ? params[index] : def;
+};
+
+float amount = getParam(0, 0.5f);
+amount = juce::jlimit(0.0f, 1.0f, amount);
+
+// Copiamos hasta fftSize muestras del primer canal al buffer FFTW.
+if (fftPlan != nullptr && totalNumInputChannels > 0)
+{
+    auto* data = buffer.getWritePointer(0);
+    int n = juce::jmin(buffer.getNumSamples(), fftSize);
+
+    for (int i = 0; i < fftSize; ++i)
+        fftInput[i] = 0.0;
+
+    for (int i = 0; i < n; ++i)
+        fftInput[i] = (double)data[i];
+
+    fftw_execute(fftPlan);
+
+    // Usamos el resultado de FFTW de forma simple para demostrar uso real:
+    // calculamos una energia aproximada de bajas frecuencias.
+    double lowEnergy = 0.0;
+
+    for (int bin = 1; bin < 16; ++bin)
+    {
+        double real = fftOutput[bin][0];
+        double imag = fftOutput[bin][1];
+        lowEnergy += real * real + imag * imag;
+    }
+
+    float gain = 1.0f + amount * 0.000001f * (float)lowEnergy;
+    gain = juce::jlimit(0.2f, 2.0f, gain);
+
+    for (int ch = 0; ch < totalNumInputChannels; ++ch)
+    {
+        auto* channelData = buffer.getWritePointer(ch);
+
+        for (int i = 0; i < buffer.getNumSamples(); ++i)
+            channelData[i] = juce::jlimit(-1.0f, 1.0f, channelData[i] * gain);
+    }
+}
+
