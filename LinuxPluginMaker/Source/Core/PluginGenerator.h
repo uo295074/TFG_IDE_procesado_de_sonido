@@ -18,10 +18,11 @@ public:
 
   void createPluginFiles(PluginData::Project &project);
 
-  // --- NUEVO MÉTODO: Compila e instala automáticamente ---
+  // Lanza la compilacion del proyecto generado y copia el resultado a ~/.lv2.
   juce::String compileAndInstallPlugin(const PluginData::Project &project);
   bool validateProject(const PluginData::Project &project, juce::String &error);
 
 private:
   juce::File desktopDir;
+  juce::File startupWorkingDir;
 };

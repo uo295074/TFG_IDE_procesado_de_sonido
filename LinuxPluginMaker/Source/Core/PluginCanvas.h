@@ -10,7 +10,8 @@ public:
 
   PluginCanvas() {}
 
-  // 🔥🔥🔥 NUEVO: referencia al Project (clave para dinámica)
+  // El lienzo necesita conocer el proyecto para asignar parametros segun el
+  // efecto seleccionado y para completar los selectores dinamicos.
   void setProject(PluginData::Project *proj) { currentProject = proj; }
 
   void addElement(PluginData::ComponentType type, int index,
@@ -60,7 +61,7 @@ public:
       }
     }
 
-    // limpiar selección en panel
+    // Al borrar un elemento, el panel de propiedades debe volver al estado de proyecto.
     if (onSelectionChanged)
       onSelectionChanged(nullptr);
 
@@ -78,11 +79,11 @@ public:
 
     for (const auto &c : proj.components) {
       auto *newComp = new VisualElement(c.type, c.index, c.name);
-      newComp->setParamName(c.paramName); // 🔥🔥🔥 CLAVE
+      newComp->setParamName(c.paramName); // Mantiene el enlace con el parametro DSP.
       newComp->setSymbol(c.symbol);
       newComp->setRange(c.min, c.max, c.def);
 
-      // 🔥🔥🔥 NUEVO: cargar selector (opciones)
+      // Los selectores necesitan restaurar su numero de opciones al cargar un XML.
       if (c.type == PluginData::ComponentType::Selector) {
         newComp->setNumSteps(c.numSteps);
       }
@@ -131,7 +132,8 @@ public:
         comp.def = 0;
       }
 
-      // 🔥🔥🔥 SELECTOR DINÁMICO DESDE XML
+      // Si el efecto define un selector en el XML, sus opciones se copian al proyecto
+      // para que despues aparezcan correctamente en el TTL generado.
       if (comp.type == PluginData::ComponentType::Selector && currentProject) {
         int idx = currentProject->currentEffectIndex;
 
@@ -139,7 +141,7 @@ public:
           auto &effect = currentProject->availableEffects[idx];
 
           if (!effect.selectors.empty()) {
-            auto &sel = effect.selectors[0]; // 🔥 primer selector
+            auto &sel = effect.selectors[0]; // En esta version se usa un selector por efecto.
 
             comp.options = sel.options;
             comp.numSteps = (int)sel.options.size();
@@ -176,10 +178,38 @@ public:
 
   void refreshAutoParams() { autoAssignParamNames(); }
 
+  int countElementsOfType(PluginData::ComponentType type) const {
+    int count = 0;
+    for (auto *el : elements)
+      if (el->getType() == type)
+        count++;
+    return count;
+  }
+
+  void limitElementsOfType(PluginData::ComponentType type, int maxCount) {
+    int kept = 0;
+
+    for (int i = 0; i < elements.size();) {
+      if (elements[i]->getType() == type) {
+        if (kept >= maxCount) {
+          removeChildComponent(elements[i]);
+          elements.remove(i);
+          continue;
+        }
+
+        kept++;
+      }
+
+      i++;
+    }
+
+    repaint();
+  }
+
 private:
   juce::OwnedArray<VisualElement> elements;
 
-  // 🔥🔥🔥 NUEVO
+  // Referencia no propietaria al proyecto que esta editando el lienzo.
   PluginData::Project *currentProject = nullptr;
 
   void deselectAll() {
@@ -201,7 +231,7 @@ private:
     int paramIndex = 0;
 
     for (auto *el : elements) {
-      // SOLO sliders/knobs
+      // Solo los controles continuos se enlazan con parametros numericos del efecto.
       if (el->getType() == PluginData::ComponentType::Slider ||
           el->getType() == PluginData::ComponentType::Knob) {
         if (paramIndex < effect.params.size()) {
@@ -210,7 +240,7 @@ private:
         }
       }
 
-      // SELECTOR → SIEMPRE MODE
+      // Los selectores de los efectos predefinidos representan el modo de trabajo.
       if (el->getType() == PluginData::ComponentType::Selector) {
         el->setParamName("Mode");
       }

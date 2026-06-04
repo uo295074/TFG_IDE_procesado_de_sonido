@@ -11,25 +11,23 @@ public:
       : componentType(type), componentIndex(index) {
     setOpaque(false);
 
-    // --- DATOS ---
+    // Datos internos que despues se guardan en el proyecto y se traducen a LV2.
     compName = name;
 
     compSymbol =
         (type == PluginData::ComponentType::Slider ? "control" : "switch") +
         juce::String(index);
 
-    // 🔥 NUEVO
-    // 🔥 CAMBIO AQUÍ
     if (type == PluginData::ComponentType::Slider ||
         type == PluginData::ComponentType::Knob) {
-      paramName = name; // 🔥 usar nombre visible
+      paramName = name;
     } else if (type == PluginData::ComponentType::Selector) {
-      paramName = "Mode"; // 🔥 estándar para selectores
+      paramName = "Mode";
     } else {
       paramName = name;
     }
 
-    // ⚠️ LEGACY
+    // Se mantiene para poder abrir proyectos antiguos basados en roles fijos.
     role = PluginData::ParamRole::None;
 
     if (type == PluginData::ComponentType::Slider ||
@@ -44,7 +42,7 @@ public:
       defVal = 0.0f;
     }
 
-    // --- UI ---
+    // Representacion visual usada dentro del lienzo del IDE.
     if (type == PluginData::ComponentType::Slider ||
         type == PluginData::ComponentType::Knob ||
         type == PluginData::ComponentType::Selector) {
@@ -53,6 +51,8 @@ public:
 
       if (type == PluginData::ComponentType::Slider)
         slider->setSliderStyle(juce::Slider::LinearVertical);
+      else if (type == PluginData::ComponentType::Selector)
+        slider->setSliderStyle(juce::Slider::LinearHorizontal);
       else
         slider->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
 
@@ -65,7 +65,10 @@ public:
       label.setJustificationType(juce::Justification::centred);
       label.attachToComponent(slider.get(), false);
 
-      setSize(80, 100);
+      if (type == PluginData::ComponentType::Selector)
+        setSize(100, 70);
+      else
+        setSize(80, 100);
     } else if (type == PluginData::ComponentType::Toggle) {
       toggle.reset(new juce::ToggleButton(name));
       toggle->setInterceptsMouseClicks(false, false);
@@ -74,10 +77,6 @@ public:
       setSize(100, 30);
     }
   }
-
-  // =========================
-  // GETTERS / SETTERS
-  // =========================
 
   void setName(const juce::String &n) {
     compName = n;
@@ -100,39 +99,29 @@ public:
   float getMax() const { return maxVal; }
   float getDef() const { return defVal; }
 
-  // =========================
-  // 🔥 SELECTOR (NUEVO)
-  // =========================
+  // Numero de estados disponibles para controles discretos.
   void setNumSteps(int s) { numSteps = s; }
   int getNumSteps() const { return numSteps; }
 
-  // =========================
-  // 🔥 PARAM NAME
-  // =========================
+  // Nombre del parametro DSP asociado a este control.
   void setParamName(const juce::String &name) {
     paramName = name;
     repaint();
   }
   juce::String getParamName() const { return paramName; }
 
-  // =========================
-  // ⚠️ LEGACY
-  // =========================
+  // Rol antiguo conservado por compatibilidad.
   void setRole(PluginData::ParamRole r) { role = r; }
   PluginData::ParamRole getRole() const { return role; }
 
-  // =========================
-  // SELECCIÓN
-  // =========================
+  // Marca visualmente el componente seleccionado en el lienzo.
   void setSelected(bool shouldBeSelected) {
     isSelected = shouldBeSelected;
     repaint();
   }
   bool getSelected() const { return isSelected; }
 
-  // =========================
-  // MOUSE
-  // =========================
+  // Selecciona el componente y permite arrastrarlo por el lienzo.
   void mouseDown(const juce::MouseEvent &e) override {
     if (onClick)
       onClick();
@@ -158,9 +147,7 @@ public:
       setTopLeftPosition(getX(), 0);
   }
 
-  // =========================
-  // PAINT
-  // =========================
+  // Dibuja el marco de seleccion y el nombre de parametro asociado.
   void paint(juce::Graphics &g) override {
     g.fillAll(juce::Colours::white.withAlpha(0.05f));
 
@@ -192,22 +179,22 @@ private:
   PluginData::ComponentType componentType;
   int componentIndex;
 
-  // DATOS
+  // Datos persistentes del componente.
   juce::String compName;
   juce::String compSymbol;
   float minVal, maxVal, defVal;
   bool isSelected = false;
 
-  // 🔥 NUEVO
+  // Parametro DSP mostrado en la parte inferior del control.
   juce::String paramName;
 
-  // 🔥 SELECTOR
+  // Numero de opciones para controles discretos.
   int numSteps = 3;
 
-  // ⚠️ LEGACY
+  // Rol antiguo conservado por compatibilidad.
   PluginData::ParamRole role = PluginData::ParamRole::None;
 
-  // UI
+  // Componentes JUCE usados para representar el control en el IDE.
   std::unique_ptr<juce::Slider> slider;
   std::unique_ptr<juce::ToggleButton> toggle;
   juce::Label label;

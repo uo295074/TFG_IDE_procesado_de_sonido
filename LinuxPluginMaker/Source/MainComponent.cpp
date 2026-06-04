@@ -1,7 +1,7 @@
 /*
   ==============================================================================
     Source/MainComponent.cpp
-    Actualizado con Editor de Código DSP Modal + XML Effects Loader
+    Componente principal del IDE y coordinacion de la interfaz.
   ==============================================================================
 */
 #include "MainComponent.h"
@@ -119,7 +119,7 @@ private:
 };
 } // namespace
 
-// Definimos IDs para los menús
+// Identificadores internos de las acciones disponibles en la barra de menus.
 enum MenuIDs {
   FileNew = 1,
   FileLoad,
@@ -137,21 +137,18 @@ enum MenuIDs {
 };
 
 MainComponent::MainComponent() : menuBar(this) {
-  // ================================
-  // 🔥 NUEVO: CARGA DE EFFECTS.XML
-  // ================================
+  // Carga los efectos disponibles desde el XML distribuido junto al ejecutable.
   {
     juce::File xmlFile =
         juce::File::getSpecialLocation(juce::File::currentExecutableFile)
             .getParentDirectory()
             .getChildFile("Data")
             .getChildFile("effects.xml");
-    juce::Logger::writeToLog("Ruta XML: " + xmlFile.getFullPathName());
 
     if (xmlFile.existsAsFile()) {
       project.availableEffects = PluginData::loadEffectsFromXML(xmlFile);
 
-      // 🔥 DELAY EFFECT: fallback para ejecutables que carguen un XML antiguo.
+      // Fallback para mantener disponible Delay si se carga un XML antiguo.
       bool hasDelay = false;
       for (auto &effect : project.availableEffects)
         if (effect.name == "Delay")
@@ -166,28 +163,12 @@ MainComponent::MainComponent() : menuBar(this) {
         project.availableEffects.push_back(delay);
       }
 
-      // 🔥🔥🔥 NUEVO: log también selectores
-      for (auto &e : project.availableEffects) {
-        juce::Logger::writeToLog("Effect: " + e.name);
-
-        for (auto &p : e.params)
-          juce::Logger::writeToLog("  Param: " + p.name);
-
-        for (auto &s : e.selectors) {
-          juce::Logger::writeToLog("  Selector: " + s.name);
-          for (auto &opt : s.options)
-            juce::Logger::writeToLog("    Option: " + opt);
-        }
-      }
-
     } else {
       juce::Logger::writeToLog("No se encontró effects.xml");
     }
   }
 
-  // ================================
-  // UI NORMAL (igual que antes)
-  // ================================
+  // Construccion de la interfaz principal.
 
   addAndMakeVisible(menuBar);
   menuBar.setColour(juce::PopupMenu::backgroundColourId,
@@ -217,7 +198,7 @@ MainComponent::MainComponent() : menuBar(this) {
   addAndMakeVisible(canvas);
   canvas.setProject(&project);
 
-  // BOTONES
+  // Herramientas del lienzo.
   addAndMakeVisible(addSliderBtn);
   addSliderBtn.setColour(juce::TextButton::buttonColourId, kButtonBg);
   addSliderBtn.setColour(juce::TextButton::buttonOnColourId, kButtonOn);
@@ -256,6 +237,34 @@ MainComponent::MainComponent() : menuBar(this) {
   addSelectorBtn.setColour(juce::TextButton::buttonOnColourId, kButtonOn);
   addSelectorBtn.setColour(juce::TextButton::textColourOffId, kTextStrong);
   addSelectorBtn.onClick = [this] {
+    bool selectorAllowed = project.isCustom;
+
+    if (!project.isCustom &&
+        project.currentEffectIndex >= 0 &&
+        project.currentEffectIndex < project.availableEffects.size()) {
+      auto &effect = project.availableEffects[project.currentEffectIndex];
+      selectorAllowed = !effect.selectors.empty();
+    }
+
+    if (!selectorAllowed) {
+      juce::AlertWindow::showMessageBoxAsync(
+          juce::AlertWindow::WarningIcon,
+          juce::String::fromUTF8("Selector no disponible"),
+          juce::String::fromUTF8(
+              "El efecto actual no define un selector. Usa sliders/knobs o cambia a modo Custom."));
+      return;
+    }
+
+    if (!project.isCustom &&
+        canvas.countElementsOfType(PluginData::ComponentType::Selector) > 0) {
+      juce::AlertWindow::showMessageBoxAsync(
+          juce::AlertWindow::WarningIcon,
+          juce::String::fromUTF8("Selector duplicado"),
+          juce::String::fromUTF8(
+              "Los efectos predefinidos solo utilizan un selector."));
+      return;
+    }
+
     static int counter = 1;
     canvas.addElement(PluginData::ComponentType::Selector, counter,
                       "Selector " + juce::String(counter));
@@ -302,7 +311,8 @@ MainComponent::MainComponent() : menuBar(this) {
 
   propertiesPanel.onDataChanged = [this]() {
     syncPresetDspCode();
-    canvas.repaint(); // 🔥🔥🔥 refresh selector dinámico
+    normalizeSelectorsForCurrentEffect();
+    canvas.repaint(); // Actualiza la visualizacion de parametros y selectores.
     canvas.refreshAutoParams();
   };
 
@@ -370,7 +380,7 @@ MainComponent::MainComponent() : menuBar(this) {
 
 MainComponent::~MainComponent() {}
 
-// --- IMPLEMENTACIÓN DEL MENÚ ---
+// Configuracion de la barra de menus.
 
 juce::StringArray MainComponent::getMenuBarNames() {
   return {"Archivo", "Proyecto", "Presets", "Ayuda"};
@@ -388,7 +398,6 @@ juce::PopupMenu MainComponent::getMenuForIndex(int topLevelMenuIndex,
     menu.addSeparator();
     menu.addItem(FileExit, "Salir");
   } else if (menuName == "Proyecto") {
-    // AQUÍ ESTÁ LO QUE PEDÍAS: Cambiar datos desde el menú
     menu.addItem(ProjectProps, "Propiedades del Plugin...");
     menu.addItem(ProjectCodeEditor,
                  juce::String::fromUTF8("Editor de Código DSP..."));
@@ -428,7 +437,7 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
     break;
 
   case FileLoad:
-    // 1. Abrir ventana de carga
+    // Abre un proyecto XML guardado previamente.
     fileChooser = std::make_unique<juce::FileChooser>(
         "Cargar Proyecto",
         juce::File::getSpecialLocation(juce::File::userDocumentsDirectory),
@@ -441,12 +450,12 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
                                if (file != juce::File{}) {
                                  juce::XmlDocument xmlDoc(file);
                                  if (auto xml = xmlDoc.getDocumentElement()) {
-                                   // 2. Extraer los datos del XML al Cerebro
-                                   project.fromXml(xml.get());
-                                   // 3. Redibujar la interfaz
-                                   canvas.loadProject(project);
-                                   // 4. Actualizar el panel derecho
-                                   propertiesPanel.inspectProject(&project);
+                                    // Restaura el modelo del proyecto desde el XML.
+                                    project.fromXml(xml.get());
+                                    // Reconstruye el lienzo a partir de los componentes guardados.
+                                    canvas.loadProject(project);
+                                    // Sincroniza paneles y controles de monitorizacion.
+                                    propertiesPanel.inspectProject(&project);
                                    syncLedTogglesFromProject();
                                  }
                                }
@@ -458,11 +467,10 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
     break;
 
   case ProjectProps:
-    // ESTO ES CLAVE: Forzamos al panel derecho a mostrar los datos globales
+    // Muestra de nuevo las propiedades globales del proyecto.
     propertiesPanel.inspectProject(&project);
     break;
 
-  // --- NUEVO CASO: ABRIR EL EDITOR MODAL ---
   case ProjectCodeEditor: {
     auto *editorPanel = new CodeEditorPanel(project.customDspCode);
 
@@ -529,9 +537,8 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
     options.launchAsync();
     break;
   }
-  // -----------------------------------------
   case ProjectExportSource: {
-    // Primero generamos el proyecto por si aún no existe
+    // Genera una copia actualizada antes de exportar el codigo fuente.
     canvas.updateProjectData(project);
     generator.createPluginFiles(project);
 
@@ -590,7 +597,7 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
   }
 
   case ProjectGenerate:
-    // Simulamos click en el botón naranja
+    // Reutiliza la misma ruta de generacion que el boton principal.
     generateBtn.triggerClick();
     break;
 
@@ -670,7 +677,6 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
     break;
   }
 
-  // 🔥 DELAY EFFECT
   case 1004: // Delay
   {
     canvas.clearAll();
@@ -698,8 +704,6 @@ void MainComponent::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
   }
 }
 
-// --- LAYOUT ACTUALIZADO ---
-
 void MainComponent::paint(juce::Graphics &g) {
   g.setGradientFill(juce::ColourGradient(kBgTop, 0.0f, 0.0f, kBgBottom, 0.0f,
                                          (float)getHeight(), false));
@@ -725,12 +729,10 @@ void MainComponent::paint(juce::Graphics &g) {
 void MainComponent::resized() {
   auto area = getLocalBounds();
 
-  // 1. MENU BAR (Ocupa la tira de arriba)
-  // .removeFromTop(20) corta 20 píxeles de arriba y se los da a la barra.
-  // El resto de 'area' se hace más pequeño automáticamente.
+  // Barra superior de menus.
   menuBar.setBounds(area.removeFromTop(24));
 
-  // 2. COLUMNA IZQUIERDA
+  // Columna izquierda con herramientas e indicadores.
   auto sidebar = area.removeFromLeft(200).reduced(12, 14);
   toolsLabel.setBounds(sidebar.removeFromTop(30));
   sidebar.removeFromTop(14);
@@ -742,7 +744,7 @@ void MainComponent::resized() {
   sidebar.removeFromTop(10);
   addSelectorBtn.setBounds(sidebar.removeFromTop(40));
   sidebar.removeFromTop(10);
-  deleteBtn.setBounds(sidebar.removeFromTop(40)); // 🔥 NUEVO
+  deleteBtn.setBounds(sidebar.removeFromTop(40));
   sidebar.removeFromTop(18);
 
   ledToolsLabel.setBounds(sidebar.removeFromTop(24));
@@ -762,11 +764,11 @@ void MainComponent::resized() {
 
   clearBtn.setBounds(sidebar.removeFromBottom(42));
 
-  // 3. COLUMNA DERECHA
+  // Panel derecho de propiedades.
   auto propsArea = area.removeFromRight(250).reduced(12, 14);
   propertiesPanel.setBounds(propsArea);
 
-  // 4. CENTRO
+  // Zona central con el lienzo y el boton de generacion.
   area.reduce(14, 14);
   listLabel.setBounds(area.removeFromTop(30));
   generateBtn.setBounds(area.removeFromBottom(46));
@@ -797,6 +799,39 @@ void MainComponent::syncLedTogglesFromProject() {
                                 juce::dontSendNotification);
   processingLedToggle.setToggleState(project.enableProcessingLed,
                                      juce::dontSendNotification);
+}
+
+void MainComponent::normalizeSelectorsForCurrentEffect() {
+  if (project.isCustom)
+    return;
+
+  bool effectUsesSelector = false;
+
+  if (project.currentEffectIndex >= 0 &&
+      project.currentEffectIndex < project.availableEffects.size()) {
+    auto &effect = project.availableEffects[project.currentEffectIndex];
+    effectUsesSelector = !effect.selectors.empty();
+  }
+
+  int selectorCount =
+      canvas.countElementsOfType(PluginData::ComponentType::Selector);
+  int maxSelectors = effectUsesSelector ? 1 : 0;
+
+  if (selectorCount <= maxSelectors)
+    return;
+
+  canvas.limitElementsOfType(PluginData::ComponentType::Selector, maxSelectors);
+  propertiesPanel.inspectProject(&project);
+
+  juce::String message = effectUsesSelector
+                             ? juce::String::fromUTF8(
+                                   "El efecto actual solo utiliza un selector. Se han eliminado los selectores sobrantes.")
+                             : juce::String::fromUTF8(
+                                   "El efecto actual no utiliza selector. Se han eliminado los selectores del lienzo.");
+
+  juce::AlertWindow::showMessageBoxAsync(
+      juce::AlertWindow::WarningIcon,
+      juce::String::fromUTF8("Selectores ajustados"), message);
 }
 
 bool MainComponent::hasUnsavedProjectChanges() {

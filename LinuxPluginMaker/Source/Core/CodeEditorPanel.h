@@ -4,12 +4,12 @@
 
 class CodeEditorPanel : public juce::Component {
 public:
-  // 🔥 Ahora recibe una referencia a cualquier string (DSP, INIT, etc.)
+  // El panel edita directamente el bloque de texto recibido: DSP, inicializacion,
+  // variables persistentes, etc.
   CodeEditorPanel(juce::String &codeToEdit) : codeRef(codeToEdit) {
-    // Cargar el código en el documento
     codeDocument.replaceAllContent(codeRef);
 
-    // 🎨 COLORES (modo claro legible)
+    // Tema claro para que el codigo sea legible dentro de la ventana modal.
     editor.setColour(juce::CodeEditorComponent::backgroundColourId,
                      juce::Colours::white);
     editor.setColour(juce::CodeEditorComponent::defaultTextColourId,
@@ -20,7 +20,6 @@ public:
 
     editor.setColour(juce::CaretComponent::caretColourId, juce::Colours::black);
 
-    // números de línea
     editor.setColour(juce::CodeEditorComponent::lineNumberTextId,
                      juce::Colours::darkgrey);
     editor.setColour(juce::CodeEditorComponent::lineNumberBackgroundId,
@@ -29,13 +28,10 @@ public:
     editor.setFont(juce::Font(14.0f));
     addAndMakeVisible(editor);
 
-    // 🔥 BOTÓN GUARDAR
     saveBtn.setButtonText("Guardar y Cerrar");
     saveBtn.onClick = [this] {
-      // Guardar contenido en la referencia
       codeRef = codeDocument.getAllContent();
 
-      // Cerrar ventana
       if (auto *dw = findParentComponentOfClass<juce::DialogWindow>())
         dw->exitModalState(0);
     };
@@ -51,7 +47,7 @@ public:
   }
 
 private:
-  // 🔥 CLAVE: referencia genérica al código
+  // Referencia al texto real del proyecto, al guardar se actualiza sin copias extra.
   juce::String &codeRef;
 
   juce::CodeDocument codeDocument;

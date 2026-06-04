@@ -48,7 +48,7 @@ public:
     addCompField(maxLabel, maxEditor, juce::String::fromUTF8("Máximo:"));
     addCompField(defLabel, defEditor, "Defecto:");
 
-    addCompField(stepsLabel, stepsEditor, "Opciones:"); // Nuevo selector
+    addCompField(stepsLabel, stepsEditor, "Opciones:"); // Numero de opciones del selector.
     roleLabel.setText(juce::String::fromUTF8("Parámetro:"),
                       juce::dontSendNotification);
     addAndMakeVisible(roleLabel);
@@ -109,14 +109,14 @@ public:
     algoCombo.addListener(this);
     styleCombo(algoCombo);
 
-    // GLOBAL BYPASS
+    // Control global para dejar pasar la señal sin aplicar el DSP.
     bypassToggle.setButtonText("Bypass global");
     bypassToggle.setColour(juce::ToggleButton::textColourId,
                            juce::Colour(0xffe5eff5));
     addAndMakeVisible(bypassToggle);
     bypassToggle.addListener(this);
 
-    // 🔥 LED INDICATORS
+    // Indicadores que el plugin puede exponer como puertos de salida LV2.
     sectionIndicatorsLabel.setText("Indicadores visuales",
                                    juce::dontSendNotification);
     sectionIndicatorsLabel.setFont(juce::Font(14.0f, juce::Font::bold));
@@ -150,7 +150,7 @@ public:
     rmsMeterToggle.addListener(this);
     processingLedToggle.addListener(this);
 
-    // 🔥 VARIABLES
+    // Editor antiguo de variables persistentes. Actualmente se abre desde el menu.
     varsLabel.setText("Variables DSP:", juce::dontSendNotification);
     addAndMakeVisible(varsLabel);
 
@@ -164,7 +164,7 @@ public:
     varsEditor.setReturnKeyStartsNewLine(true);
     varsEditor.addListener(this);
 
-    // 🔥 EXTRA BUILD CONFIG
+    // Configuracion antigua de compilacion. Actualmente se abre desde una ventana modal.
     extraLibrariesLabel.setText("Librerias extra:", juce::dontSendNotification);
     addAndMakeVisible(extraLibrariesLabel);
     addAndMakeVisible(extraLibrariesEditor);
@@ -284,7 +284,7 @@ public:
         defEditor.setText(juce::String(element->getDef()));
       }
 
-      // 🔥 SELECTOR
+      // Los selectores solo necesitan guardar cuantas opciones discretas tienen.
       if (isSelector())
         stepsEditor.setText(juce::String(element->getNumSteps()));
 
@@ -305,7 +305,7 @@ private:
   juce::TextEditor compNameEditor, compIDEditor, minEditor, maxEditor,
       defEditor;
 
-  // Nuevo selector
+  // Campo usado por componentes de tipo selector.
   juce::Label stepsLabel;
   juce::TextEditor stepsEditor;
 
@@ -324,10 +324,10 @@ private:
   juce::Label algoLabel;
   juce::ComboBox algoCombo;
 
-  // GLOBAL BYPASS
+  // Bypass del plugin generado.
   juce::ToggleButton bypassToggle;
 
-  // 🔥 LED INDICATORS
+  // Opciones de monitorizacion disponibles como puertos LV2 de salida.
   juce::Label sectionIndicatorsLabel;
   juce::ToggleButton inputLedToggle, outputLedToggle, clipLedToggle,
       levelMeterToggle, rmsMeterToggle, processingLedToggle;
@@ -336,7 +336,7 @@ private:
   juce::TextButton varsToggleBtn;
   juce::TextEditor varsEditor;
 
-  // 🔥 EXTRA BUILD CONFIG
+  // Controles conservados para compatibilidad con el panel anterior.
   juce::TextButton buildToggleBtn;
   juce::Label extraLibrariesLabel, extraIncludePathsLabel;
   juce::TextEditor extraLibrariesEditor, extraIncludePathsEditor;
@@ -344,7 +344,6 @@ private:
   bool showVarsEditor = false;
   bool showBuildEditors = false;
 
-  // 🔥 FIX CRÍTICO (FALTABA)
   bool isSliderLike() const {
     if (!currentElement)
       return false;
@@ -353,7 +352,6 @@ private:
             currentElement->getType() == PluginData::ComponentType::Knob);
   }
 
-  // Nuevo selector
   bool isSelector() const {
     if (!currentElement)
       return false;
@@ -375,7 +373,7 @@ private:
     for (auto &effect : currentProject->availableEffects)
       algoCombo.addItem(effect.name, id++);
 
-    // 🔥 SOLO añadir Custom si hay efectos cargados
+    // Custom solo se ofrece cuando hay una lista valida de efectos cargada.
     if (!currentProject->availableEffects.empty())
       algoCombo.addItem("Custom", 999);
   }
@@ -409,7 +407,7 @@ private:
     bool slider = isSliderLike();
     bool customSlider = showComp && slider && isCustomProject();
 
-    // ===== COMPONENTE =====
+    // Campos propios del componente seleccionado.
     compNameLabel.setVisible(showComp);
     compNameEditor.setVisible(showComp);
     compIDLabel.setVisible(showComp);
@@ -422,7 +420,7 @@ private:
     defLabel.setVisible(showComp && slider);
     defEditor.setVisible(showComp && slider);
 
-    // 🔥 SELECTOR
+    // Campo adicional para componentes discretos.
     stepsLabel.setVisible(showComp && isSelector());
     stepsEditor.setVisible(showComp && isSelector());
 
@@ -430,7 +428,7 @@ private:
     roleCombo.setVisible(showComp && slider && !customSlider);
     customParamInfoLabel.setVisible(customSlider);
 
-    // ===== PROYECTO =====
+    // Campos generales del proyecto cuando no hay componente seleccionado.
     projNameLabel.setVisible(showProj);
     projNameEditor.setVisible(showProj);
     projManufLabel.setVisible(showProj);
@@ -449,7 +447,7 @@ private:
     sectionRoutingLabel.setVisible(showProj);
     bypassToggle.setVisible(showProj);
 
-    // 🔥 LED INDICATORS (se configuran desde el panel izquierdo)
+    // Los indicadores se gestionan desde el panel izquierdo en la interfaz actual.
     sectionIndicatorsLabel.setVisible(false);
     inputLedToggle.setVisible(false);
     outputLedToggle.setVisible(false);
@@ -462,7 +460,7 @@ private:
     varsToggleBtn.setVisible(false);
     varsEditor.setVisible(false);
 
-    // 🔥 EXTRA BUILD CONFIG
+    // La configuracion avanzada se muestra en su propia ventana modal.
     buildToggleBtn.setVisible(false);
     extraLibrariesLabel.setVisible(false);
     extraLibrariesEditor.setVisible(false);
@@ -473,7 +471,6 @@ private:
     resized();
   }
 
-  // 🔥 SOLO UNA VERSIÓN (quitado duplicado)
   void applyChanges() {
     if (currentElement) {
       currentElement->setName(compNameEditor.getText());
@@ -507,7 +504,7 @@ private:
         }
       }
 
-      // 🔥 SELECTOR
+      // Evita selectores con menos de dos estados.
       if (isSelector()) {
         int steps = stepsEditor.getText().getIntValue();
         if (steps < 2)
@@ -538,7 +535,6 @@ private:
 
     currentProject->currentAlgorithm =
         (PluginData::AlgorithmType)currentProject->currentEffectIndex;
-    // 🔥 ESTO FALTABA
     updateRoleOptions();
 
     if (onDataChanged)
@@ -630,7 +626,6 @@ private:
     layoutField(minLabel, minEditor);
     layoutField(maxLabel, maxEditor);
     layoutField(defLabel, defEditor);
-    // 🔥 NUEVO
     layoutField(stepsLabel, stepsEditor);
     layoutField(roleLabel, roleCombo);
 
@@ -696,7 +691,7 @@ private:
       area.removeFromTop(4);
     }
 
-    // 🔥 VARIABLES (si las tienes)
+    // Se mantiene por compatibilidad, aunque las variables se editan desde menu.
     if (varsLabel.isVisible()) {
       auto row = area.removeFromTop(25);
       varsLabel.setBounds(row.removeFromLeft(110));
@@ -710,7 +705,7 @@ private:
       area.removeFromTop(gap);
     }
 
-    // 🔥 EXTRA BUILD CONFIG
+    // Se mantiene por compatibilidad, aunque la configuracion se edita desde menu.
     if (buildToggleBtn.isVisible()) {
       auto row = area.removeFromTop(25);
       buildToggleBtn.setBounds(row);

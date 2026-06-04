@@ -4,42 +4,34 @@
 
 namespace PluginData {
 
-// ================================
-// ENUMS (mantengo por compatibilidad)
-// ================================
+// Tipos basicos que describen los algoritmos y controles disponibles en el IDE.
 enum class AlgorithmType { Gain, Distortion, Filter, Tremolo, Reverb, Delay, Custom };
 
-// 🔥 AÑADIDO Selector
 enum class ComponentType { Slider, Toggle, Knob, Selector };
 
-// ⚠️ LEGACY (se eliminará en el futuro)
+// Campo mantenido para poder abrir proyectos antiguos que usaban roles fijos.
 enum class ParamRole { None, Gain, Drive, Mix, Tone, Frequency, Depth };
 
-// ================================
-// 🔥 NUEVO SISTEMA DINÁMICO
-// ================================
+// Definicion minima de un parametro cargado desde effects.xml.
 struct EffectParam {
   juce::String name;
 };
 
-// 🔥🔥🔥 NUEVO: SELECTOR DEFINIDO EN XML
+// Selectores discretos definidos en effects.xml, por ejemplo modos de filtro.
 struct EffectSelector {
   juce::String name;
   std::vector<juce::String> options;
 };
 
-// 🔥🔥🔥 MODIFICADO
+// Descripcion de un efecto disponible en el desplegable del IDE.
 struct EffectDefinition {
   juce::String name;
   std::vector<EffectParam> params;
 
-  // 🔥 NUEVO: múltiples selectores posibles
   std::vector<EffectSelector> selectors;
 };
 
-// ================================
-// COMPONENTE
-// ================================
+// Componente visual colocado en el lienzo y convertido despues en puerto LV2.
 struct Component {
   int index;
   ComponentType type;
@@ -47,24 +39,22 @@ struct Component {
   juce::String name;
   juce::String symbol;
 
-  // ⚠️ LEGACY (no lo usamos ya)
+  // Se conserva para compatibilidad con proyectos guardados en versiones previas.
   ParamRole role = ParamRole::None;
 
-  // 🔥 NUEVO (IMPORTANTE)
+  // Nombre del parametro DSP al que queda enlazado el control.
   juce::String paramName;
 
   float min = 0.0f;
   float max = 1.0f;
   float def = 0.5f;
 
-  // 🔥 SELECTOR
+  // Datos usados por los controles discretos de tipo selector.
   int numSteps = 3;
   std::vector<juce::String> options;
 };
 
-// ================================
-// PROYECTO
-// ================================
+// Estado completo de un proyecto del IDE.
 struct Project {
   std::vector<EffectDefinition> availableEffects;
   int currentEffectIndex = 0;
@@ -75,7 +65,7 @@ struct Project {
   juce::String manufacturer = "Mi Nombre";
   juce::String pluginURI = "http://miweb.com/plugins/miplugin";
 
-  // 🔥 EXTRA BUILD CONFIG
+  // Configuracion avanzada que se insertara en los archivos generados.
   juce::String extraHeaders;
   juce::String extraLibraries;
   juce::String extraIncludePaths;
@@ -88,10 +78,10 @@ struct Project {
   int numInputs = 2;
   int numOutputs = 2;
 
-  // GLOBAL BYPASS
+  // Bypass global generado como puerto de control independiente.
   bool enableBypass = false;
 
-  // 🔥 LED INDICATORS
+  // Indicadores de monitorizacion generados como puertos LV2 de salida.
   bool enableInputLed = false;
   bool enableOutputLed = false;
   bool enableClipLed = true;
@@ -115,9 +105,7 @@ struct Project {
     initCode = juce::String::fromUTF8("// Código de inicialización\n");
   }
 
-  // ================================
-  // XML EXPORT (SIN CAMBIOS)
-  // ================================
+  // Serializa el proyecto completo para poder recuperarlo en otra sesion.
   std::unique_ptr<juce::XmlElement> toXml() const {
     auto xml = std::make_unique<juce::XmlElement>("LINUX_PLUGIN_MAKER_PROJECT");
 
@@ -125,12 +113,12 @@ struct Project {
     xml->setAttribute("manufacturer", manufacturer);
     xml->setAttribute("uri", pluginURI);
     xml->setAttribute("algorithm", (int)currentAlgorithm);
+    xml->setAttribute("effectIndex", currentEffectIndex);
 
     xml->setAttribute("isCustom", isCustom);
     xml->setAttribute("numInputs", numInputs);
     xml->setAttribute("numOutputs", numOutputs);
     xml->setAttribute("enableBypass", enableBypass);
-    // 🔥 LED INDICATORS
     xml->setAttribute("enableInputLed", enableInputLed);
     xml->setAttribute("enableOutputLed", enableOutputLed);
     xml->setAttribute("enableClipLed", enableClipLed);
@@ -150,7 +138,6 @@ struct Project {
     varsXml->addTextElement(userVariables);
     xml->addChildElement(varsXml);
 
-    // 🔥 EXTRA BUILD CONFIG
     auto extraHeadersXml = new juce::XmlElement("EXTRA_HEADERS");
     extraHeadersXml->addTextElement(extraHeaders);
     xml->addChildElement(extraHeadersXml);
@@ -196,9 +183,7 @@ struct Project {
     return xml;
   }
 
-  // ================================
-  // XML IMPORT (SIN CAMBIOS)
-  // ================================
+  // Restaura el estado del proyecto a partir del XML guardado por el IDE.
   void fromXml(juce::XmlElement *xml) {
     if (!xml || xml->getTagName() != "LINUX_PLUGIN_MAKER_PROJECT")
       return;
@@ -209,11 +194,18 @@ struct Project {
 
     currentAlgorithm = (AlgorithmType)xml->getIntAttribute("algorithm", 0);
     isCustom = xml->getBoolAttribute("isCustom", false);
+    currentEffectIndex = xml->getIntAttribute("effectIndex", (int)currentAlgorithm);
+
+    if (currentEffectIndex < 0)
+      currentEffectIndex = 0;
+
+    if (!isCustom && currentEffectIndex >= (int)availableEffects.size())
+      currentEffectIndex = 0;
 
     numInputs = xml->getIntAttribute("numInputs", 2);
     numOutputs = xml->getIntAttribute("numOutputs", 2);
     enableBypass = xml->getBoolAttribute("enableBypass", false);
-    // 🔥 LED INDICATORS
+    // Los proyectos antiguos solo tenian un interruptor general de indicadores.
     bool oldIndicatorsEnabled =
         xml->getBoolAttribute("enableSignalIndicators", true);
     enableInputLed = xml->getBoolAttribute("enableInputLed", false);
@@ -233,7 +225,6 @@ struct Project {
     if (auto *varsXml = xml->getChildByName("USER_VARIABLES"))
       userVariables = varsXml->getAllSubText();
 
-    // 🔥 EXTRA BUILD CONFIG
     extraHeaders.clear();
     extraLibraries.clear();
     extraIncludePaths.clear();
@@ -283,9 +274,7 @@ struct Project {
   }
 };
 
-// ================================
-// 🔥🔥🔥 LOAD EFFECTS (AHORA CON SELECTORES)
-// ================================
+// Carga los efectos disponibles desde effects.xml para no tenerlos fijados en codigo.
 static std::vector<EffectDefinition>
 loadEffectsFromXML(const juce::File &file) {
   std::vector<EffectDefinition> effects;
@@ -300,14 +289,14 @@ loadEffectsFromXML(const juce::File &file) {
 
         forEachXmlChildElement(*effectXml, childXml) {
 
-          // 🔥 PARAMS
+          // Parametros continuos del efecto.
           if (childXml->hasTagName("param")) {
             EffectParam p;
             p.name = childXml->getStringAttribute("name");
             effect.params.push_back(p);
           }
 
-          // 🔥🔥🔥 SELECTORS
+          // Selectores discretos, como modos o tipos de procesado.
           if (childXml->hasTagName("selector")) {
             EffectSelector sel;
             sel.name = childXml->getStringAttribute("name");

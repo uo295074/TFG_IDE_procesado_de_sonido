@@ -2,9 +2,7 @@
 #include <string>
 
 namespace Templates {
-// ==============================================================================
-// 1. DSP HEADER
-// ==============================================================================
+// Cabecera del motor DSP generado.
 const std::string processorHeader = R"jv(
 #pragma once
 #include <juce_audio_basics/juce_audio_basics.h>
@@ -30,14 +28,12 @@ private:
     double currentSampleRate = 44100.0;
     int currentBlockSize = 512;
 
-    //VARIABLES USUARIO
+    // Variables persistentes definidas desde el IDE.
     {{USER_VARS}}
 };
 )jv";
 
-// ==============================================================================
-// 2. DSP CPP
-// ==============================================================================
+// Implementacion del motor DSP generado.
 const std::string processorCpp = R"jv(
 #include "PluginProcessor.h"
 #include <cmath> 
@@ -50,7 +46,7 @@ void DspEngine::prepare(double sampleRate, int samplesPerBlock)
     currentSampleRate = sampleRate;
     currentBlockSize = samplesPerBlock;
 
-    //INIT USUARIO
+    // Codigo de inicializacion definido desde el IDE.
     {{INIT_CODE}}
 }
 
@@ -70,14 +66,11 @@ void DspEngine::process(float* const* inputChannelData, float* const* outputChan
 
     int totalNumInputChannels = numOutChannels;
 
-    // ==========================================================================
-    // AYUDA PARA SELECTORES (IMPORTANTE)
-    // ==========================================================================
-    // Los parámetros discretos (Selector) se usan así:
+    // Los parametros discretos de tipo Selector llegan en params[] como enteros.
     //
     // int mode = (int)params[X];
     //
-    // Ejemplo típico:
+    // Ejemplo:
     //
     // int mode = (int)params[0];
     //
@@ -91,26 +84,19 @@ void DspEngine::process(float* const* inputChannelData, float* const* outputChan
     //         break;
     // }
     //
-    // IMPORTANTE:
-    // - Los valores son enteros (0,1,2...)
-    // - El rango viene definido por numSteps en el IDE
-    // ==========================================================================
+    // El rango de valores se define desde el numero de opciones del selector.
 
-    //DSP USUARIO
+    // Codigo DSP definido desde el IDE.
     {{DSP_CODE}}
 }
 )jv";
 
-// ==============================================================================
-// 3. DUMMY HEADER
-// ==============================================================================
+// Cabecera minima necesaria para mantener la estructura del proyecto generado.
 const std::string editorHeader = R"jv(
 #pragma once
 )jv";
 
-// ==============================================================================
-// 4. LV2 WRAPPER (SIN GUI)
-// ==============================================================================
+// Wrapper LV2 sin interfaz grafica propia. El host crea la interfaz a partir del TTL.
 const std::string editorCpp = R"jv(
 #include <cstdint>
 #include <cstdlib>
@@ -176,13 +162,13 @@ static void connect_port(LV2_Handle instance, uint32_t port, void* data) {
 static void run(LV2_Handle instance, uint32_t n_samples) {
     Lv2Plugin* plugin = (Lv2Plugin*)instance;
 
-    // 🔥 VECTOR LIMPIO Y ESTABLE
+    // Copia los parametros conectados por el host en un vector estable para el DSP.
     std::vector<float> currentValues(NUM_USER_PARAMS);
 
     for (int i = 0; i < NUM_USER_PARAMS; ++i)
         currentValues[i] = plugin->paramPtrs[i] ? *(plugin->paramPtrs[i]) : 0.0f;
 
-    // GLOBAL BYPASS
+    // Bypass global generado como parametro de control independiente.
     float bypassValue = 0.0f;
 #if HAS_BYPASS
     if (BYPASS_PARAM_INDEX >= 0 && BYPASS_PARAM_INDEX < NUM_CONTROL_PARAMS &&
@@ -204,7 +190,7 @@ static void run(LV2_Handle instance, uint32_t n_samples) {
                 std::copy(plugin->inputChans[0], plugin->inputChans[0] + n_samples,
                           plugin->outputChans[ch]);
 
-    // 🔥 LED INDICATORS
+    // Calcula indicadores basicos a partir de la entrada y la salida de audio.
     if (NUM_MONITOR_PORTS > 0)
     {
         float inputPeak = 0.0f;
@@ -305,9 +291,7 @@ extern "C" {
 }
 )jv";
 
-// ==============================================================================
-// 5. CMAKE
-// ==============================================================================
+// CMakeLists.txt generado para compilar el plugin LV2.
 const std::string cmakeFile = R"jv(
 cmake_minimum_required(VERSION 3.15)
 project(SimpleLv2Plugin)
@@ -317,7 +301,7 @@ set(JUCE_WEB_BROWSER OFF CACHE BOOL "Disable Web Browser" FORCE)
 add_compile_definitions(JUCE_USE_CURL=0)
 add_compile_definitions(JUCE_WEB_BROWSER=0)
 
-add_subdirectory(JUCE)
+add_subdirectory("{{JUCE_SOURCE_DIR}}" "${CMAKE_BINARY_DIR}/JUCE-build")
 
 add_library(DspLib STATIC Source/PluginProcessor.cpp)
 target_link_libraries(DspLib PRIVATE juce::juce_core juce::juce_audio_basics)

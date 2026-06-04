@@ -1,7 +1,7 @@
 /*
   ==============================================================================
     Source/Core/PluginGenerator.cpp
-    (VERSIÓN ESTABLE: INIT + VARIABLES + DSP FIX + SELECTOR)
+    Generacion de proyectos LV2 a partir del estado del IDE.
   ==============================================================================
 */
 
@@ -9,6 +9,46 @@
 #include "Templates.h"
 
 namespace {
+bool isValidJuceDirectory(const juce::File &dir) {
+  return dir.isDirectory() && dir.getChildFile("CMakeLists.txt").existsAsFile();
+}
+
+void addJuceCandidatesFrom(juce::Array<juce::File> &candidates,
+                           const juce::File &baseDir) {
+  juce::File dir = baseDir;
+
+  for (int i = 0; i < 8 && dir != juce::File{}; ++i) {
+    candidates.addIfNotAlreadyThere(dir.getChildFile("JUCE"));
+
+    auto parent = dir.getParentDirectory();
+    if (parent == dir)
+      break;
+
+    dir = parent;
+  }
+}
+
+juce::File findJuceDirectory(const juce::File &startupWorkingDir,
+                             juce::StringArray *checkedPaths = nullptr) {
+  juce::Array<juce::File> candidates;
+
+  auto appDir = juce::File::getSpecialLocation(juce::File::currentApplicationFile)
+                    .getParentDirectory();
+
+  addJuceCandidatesFrom(candidates, appDir);
+  addJuceCandidatesFrom(candidates, startupWorkingDir);
+
+  for (auto candidate : candidates) {
+    if (checkedPaths != nullptr)
+      checkedPaths->add(candidate.getFullPathName());
+
+    if (isValidJuceDirectory(candidate))
+      return candidate;
+  }
+
+  return {};
+}
+
 juce::String findRelevantBuildLine(const juce::String &log) {
   juce::StringArray lines;
   lines.addLines(log);
@@ -79,8 +119,9 @@ juce::String classifyBuildError(const juce::String &log,
 } // namespace
 
 PluginGenerator::PluginGenerator() {
+  startupWorkingDir = juce::File::getCurrentWorkingDirectory();
   desktopDir =
-      juce::File::getCurrentWorkingDirectory().getChildFile("GeneratedPlugins");
+      startupWorkingDir.getChildFile("GeneratedPlugins");
 }
 
 juce::String
@@ -188,16 +229,16 @@ auto getParam = [&](int index, float def)
 float cutoffNorm = getParam(0, 0.5f);
 int mode = (int)getParam(params.size() - 1, 0.0f);
 
-// 🔥 limitar rango útil
+// Mantiene el parametro en un rango seguro para el filtro.
 cutoffNorm = juce::jlimit(0.001f, 0.999f, cutoffNorm);
 
-// 🔥 mapeo log correcto (20Hz - 20kHz)
+// Mapeo aproximado de 20 Hz a 20 kHz.
 float cutoff = 20.0f * std::pow(1000.0f, cutoffNorm);
 
-// 🔥 coeficiente estable
+// Coeficiente suavizado para evitar saltos bruscos.
 float x = std::exp(-2.0f * juce::MathConstants<float>::pi * cutoff / getSampleRate());
 
-// 🔥 estado persistente por canal
+// Estado persistente por canal.
 static float zL = 0.0f;
 static float zR = 0.0f;
 
@@ -211,7 +252,7 @@ for (int ch = 0; ch < totalNumInputChannels; ++ch)
     {
         float in = data[i];
 
-        // 🔥 low-pass base
+        // Filtro low-pass base a partir del que se derivan los otros modos.
         z = (1.0f - x) * in + x * z;
 
         float out = in;
@@ -240,7 +281,7 @@ for (int ch = 0; ch < totalNumInputChannels; ++ch)
 float depth     = getParam(1, 0.5f);
 int mode        = (int)getParam(params.size() - 1, 0.0f);
 
-// 🔥 evitar valores locos
+// Limita la profundidad de modulacion.
 depth = juce::jlimit(0.0f, 1.0f, depth);
 
 float rate = 0.1f + rateNorm * 10.0f;
@@ -292,7 +333,7 @@ decay = juce::jlimit(0.0f, 0.95f, decay);
 
 const int delaySamples = (int)(0.2f * getSampleRate());
 
-// 🔥 buffers fijos (SIN vector)
+// Buffers fijos para mantener el estado de la cola de reverberacion.
 static float delayBufferL[48000] = {0}; // hasta 1s aprox
 static float delayBufferR[48000] = {0};
 
@@ -324,7 +365,7 @@ for (int ch = 0; ch < totalNumInputChannels; ++ch)
 
 )";
 
-  // 🔥 DELAY EFFECT
+  // Efecto de delay predefinido.
   case PluginData::AlgorithmType::Delay:
     return R"(
 
@@ -412,21 +453,9 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
   if (!sourceDir.exists())
     sourceDir.createDirectory();
 
-  juce::File juceSource =
-      juce::File::getSpecialLocation(juce::File::currentApplicationFile)
-          .getParentDirectory()
-          .getChildFile("JUCE");
+  juce::File juceSource = findJuceDirectory(startupWorkingDir);
 
-  juce::File juceDest = projectDir.getChildFile("JUCE");
-
-  if (juceSource.exists()) {
-    juceDest.deleteRecursively();
-    juceSource.copyDirectoryTo(juceDest);
-  }
-
-  // ================================
-  // 1. AUDIO PORTS
-  // ================================
+  // Puertos de audio declarados en el descriptor LV2.
   juce::String audioPortsTtl = "";
   int portIndex = 0;
 
@@ -450,9 +479,7 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
       audioPortsTtl += ",\n             ";
   }
 
-  // ================================
-  // 2. CONTROL PORTS
-  // ================================
+  // Puertos de control creados a partir de los componentes del lienzo.
   juce::String ttlPorts = "";
 
   for (const auto &comp : project.components) {
@@ -480,7 +507,6 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
       ttlPorts += "lv2:minimum 0 ; lv2:maximum 1";
 
     }
-    // 🔥 NUEVO: SELECTOR
     else if (comp.type == PluginData::ComponentType::Selector) {
 
       ttlPorts += "a lv2:InputPort, lv2:ControlPort ; ";
@@ -492,10 +518,9 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
       ttlPorts += "lv2:minimum 0 ; ";
       ttlPorts += "lv2:maximum " + juce::String(comp.numSteps - 1) + " ; ";
 
-      // 🔥 PROPERTIES
       ttlPorts += "lv2:portProperty lv2:integer , lv2:enumeration ; ";
 
-      // 🔥🔥🔥 FIX REAL: scalePoints bien formateados
+      // scalePoint permite que el host muestre nombres legibles para cada opcion.
       if (!comp.options.empty()) {
         ttlPorts += "lv2:scalePoint ";
 
@@ -509,7 +534,7 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
             ttlPorts += " , ";
         }
 
-        ttlPorts += " ; "; // 🔥 IMPORTANTE (no coma, no punto)
+        ttlPorts += " ; "; // Cierra la lista de scalePoint dentro del puerto.
       }
     }
 
@@ -517,7 +542,7 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
     portIndex++;
   }
 
-  // GLOBAL BYPASS
+  // Bypass global: se añade como control extra, separado de los parametros DSP.
   int numUserParams = (int)project.components.size();
   int numControlParams = numUserParams + (project.enableBypass ? 1 : 0);
   juce::String bypassDefines = "#define HAS_BYPASS " +
@@ -534,7 +559,7 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
     ttlPorts += "lv2:default 0 ; lv2:minimum 0 ; lv2:maximum 1 ] ";
   }
 
-  // 🔥 LED INDICATORS
+  // Indicadores de monitorizacion expuestos como puertos LV2 de salida.
   struct MonitorPort {
     juce::String symbol;
     juce::String name;
@@ -579,9 +604,7 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
 
   int numMonitorPorts = (int)monitors.size();
 
-  // ================================
-  // 3. DSP GENERATION
-  // ================================
+  // Selecciona el codigo DSP: personalizado o predefinido.
   juce::String dspCode;
 
   if (project.isCustom) {
@@ -590,9 +613,7 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
     dspCode = getBuiltinDspCode(project.currentAlgorithm);
   }
 
-  // ================================
-  // 4. GENERAR ARCHIVOS
-  // ================================
+  // Rellena las plantillas con los datos del proyecto.
 
   juce::String headerContent = Templates::processorHeader;
   headerContent = headerContent.replace("{{EXTRA_HEADERS}}",
@@ -618,7 +639,7 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
       editorContent.replace("{{NUM_MONITOR_PORTS}}", juce::String(numMonitorPorts));
   editorContent = editorContent.replace("{{MONITOR_DEFINES}}", monitorDefines);
 
-  // 🔥🔥🔥 GENERAR PARAM_NAMES
+  // Nombres de parametros usados por el wrapper para mantener el orden visible.
   juce::String paramNamesStr;
 
   for (const auto &comp : project.components) {
@@ -631,13 +652,13 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
     }
   }
 
-  // 🔥 IMPORTANTE: quitar última coma
+  // Evita dejar una coma final en la lista generada.
   if (paramNamesStr.endsWith(", "))
     paramNamesStr = paramNamesStr.dropLastCharacters(2);
 
   editorContent = editorContent.replace("{{PARAM_NAMES}}", paramNamesStr);
 
-  // 🔥 EXTRA BUILD CONFIG
+  // Rutas de cabecera adicionales introducidas por el usuario.
   juce::String extraIncludesCmake;
   {
     juce::StringArray lines;
@@ -666,11 +687,13 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
 
   juce::String cmakeContent = Templates::cmakeFile;
   juce::String binaryName = getSafePluginFileName(project);
+  juce::String juceSourcePath = juceSource.getFullPathName().replace("\\", "/");
   cmakeContent = cmakeContent.replace("{{AUDIO_PORTS_TTL}}", audioPortsTtl);
   cmakeContent = cmakeContent.replace("{{TTL_PORTS}}", ttlPorts);
   cmakeContent = cmakeContent.replace("{{PLUGIN_NAME}}", project.pluginName);
   cmakeContent = cmakeContent.replace("{{PLUGIN_URI}}", project.pluginURI);
   cmakeContent = cmakeContent.replace("{{PLUGIN_BINARY_NAME}}", binaryName);
+  cmakeContent = cmakeContent.replace("{{JUCE_SOURCE_DIR}}", juceSourcePath);
   cmakeContent = cmakeContent.replace("{{MONITOR_TTL_PORTS}}", monitorTtlPorts);
   cmakeContent =
       cmakeContent.replace("{{EXTRA_INCLUDE_DIRS}}", extraIncludesCmake);
@@ -685,15 +708,25 @@ void PluginGenerator::createPluginFiles(PluginData::Project &project) {
   sourceDir.getChildFile("PluginEditor.cpp").replaceWithText(editorContent);
 }
 
-// ================================
-// COMPILAR E INSTALAR
-// ================================
+// Compila el proyecto generado y lo instala en la carpeta LV2 del usuario.
 juce::String
 PluginGenerator::compileAndInstallPlugin(const PluginData::Project &project) {
 
   juce::String safeName = getSafePluginFileName(project);
   juce::File projectDir = getGeneratedProjectDir(project);
   juce::File logFile = projectDir.getChildFile("build").getChildFile("build.log");
+  juce::StringArray checkedJucePaths;
+  juce::File juceSource = findJuceDirectory(startupWorkingDir, &checkedJucePaths);
+
+  if (!isValidJuceDirectory(juceSource)) {
+    juce::String result;
+    result += "ERROR:\n";
+    result += "Tipo: Problema de configuracion CMake\n\n";
+    result += "Resumen: No se encontro una carpeta JUCE valida.\n\n";
+    result += "Sugerencia: Comprueba que la carpeta JUCE esta junto al ejecutable del IDE o en alguno de sus directorios padre.\n\n";
+    result += "Rutas comprobadas:\n" + checkedJucePaths.joinIntoString("\n");
+    return result;
+  }
 
   juce::String cmd = "cd \"" + projectDir.getFullPathName() +
                      "\" && "
@@ -716,9 +749,7 @@ PluginGenerator::compileAndInstallPlugin(const PluginData::Project &project) {
   return classifyBuildError(log, logFile);
 }
 
-// ================================
-// VALIDACIÓN
-// ================================
+// Comprueba condiciones minimas antes de generar el proyecto.
 bool PluginGenerator::validateProject(const PluginData::Project &project,
                                       juce::String &error) {
 

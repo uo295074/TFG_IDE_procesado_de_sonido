@@ -11,7 +11,7 @@
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 
-// 1. Heredamos de MenuBarModel
+// Componente principal de la aplicacion y modelo de la barra de menus.
 class MainComponent : public juce::Component, public juce::MenuBarModel {
 public:
   MainComponent();
@@ -20,7 +20,7 @@ public:
   void paint(juce::Graphics &) override;
   void resized() override;
 
-  // 2. Métodos OBLIGATORIOS del Menú
+  // Implementacion requerida por MenuBarModel.
   juce::StringArray getMenuBarNames() override;
   juce::PopupMenu getMenuForIndex(int topLevelMenuIndex,
                                   const juce::String &menuName) override;
@@ -29,16 +29,17 @@ public:
 private:
   void syncPresetDspCode();
   void syncLedTogglesFromProject();
+  void normalizeSelectorsForCurrentEffect();
   bool hasUnsavedProjectChanges();
   void promptSaveBeforeNewProject();
   void resetProject();
   void saveProjectAs(std::function<void(bool)> onComplete = {});
   void verifyBuildEnvironment();
 
-  // 3. El componente visual de la barra
+  // Barra de menus visible en la parte superior.
   juce::MenuBarComponent menuBar;
 
-  // (El resto sigue igual)
+  // Controles principales de la interfaz.
   juce::Label toolsLabel{{}, "Herramientas"};
   juce::Label listLabel{{}, juce::String::fromUTF8("Lienzo de Diseño")};
 
